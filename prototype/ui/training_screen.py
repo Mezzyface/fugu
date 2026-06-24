@@ -1,7 +1,10 @@
-"""Training run screen skeleton.
+"""Training run screen.
 
-Renders a hardcoded `RunResult` (12-floor run) using the asset map in
-docs/asset_map_iteration_1.md section 2.
+Renders a live `RunResult` (12-floor run) from the shared `GameSession`
+using the asset map in docs/asset_map_iteration_1.md section 2. A
+"Start Run" button triggers a real `TrainingSimulator.run` call, and a
+"Bank Echo" button banks the resulting `FrozenEcho` into the shared
+`EchoPool`.
 """
 
 from __future__ import annotations
@@ -12,8 +15,6 @@ from pathlib import Path
 import pygame
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from game import TrainingSimulator, sample_characters  # noqa: E402
 
 from ui.assets import BODY_FONT, CAPS_FONT, load_font, nine_slice, scaled  # noqa: E402
 
@@ -45,16 +46,104 @@ RELIC_ICON = "isle-of-lore-2-rpg-item-icons-final/Sources/output/rpg_item_icons.
 
 
 class TrainingScreen:
-    """Static demo of the 12-floor training run, driven by real game.py data."""
+    """Interactive training-run screen, driven by the shared `GameSession`."""
 
     name = "Training"
 
-    def __init__(self) -> None:
-        characters = sample_characters()
-        self.simulator = TrainingSimulator(seed=3)
-        self.run_result = self.simulator.run(characters["iron_vow"], route="deep_scaling")
+    #: Fixed default character/route for this phase -- exposing every
+    #: possible input is out of scope per the task brief.
+    character_id = "iron_vow"
+    route = "deep_scaling"
+
+    def __init__(self, session) -> None:
+        self.session = session
+        self.simulator = session.simulator
+        self.run_result = None
+        self.banked = False
+        self.start_button_rect = pygame.Rect(0, 0, 0, 0)
+        self.bank_button_rect = pygame.Rect(0, 0, 0, 0)
+
+    def start_run(self) -> None:
+        character = self.session.characters[self.character_id]
+        parents = self.session.echo_pool.best_parents(self.character_id)
+        self.run_result = self.simulator.run(character, route=self.route, parents=parents)
+        self.banked = False
+
+    def bank_echo(self) -> None:
+        if self.run_result is None or self.banked:
+            return
+        pool = self.session.echo_pool
+        if pool.is_full:
+            return
+        pool.bank_echo(self.run_result.echo)
+        self.banked = True
+
+    def handle_event(self, event: pygame.event.Event) -> None:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.start_button_rect.collidepoint(event.pos):
+                self.start_run()
+            elif self.bank_button_rect.collidepoint(event.pos):
+                self.bank_echo()
 
     def draw(self, surface: pygame.Surface) -> None:
+        if self.run_result is None:
+            self._draw_empty_state(surface)
+            return
+        self._draw_result(surface)
+
+    def _draw_empty_state(self, surface: pygame.Surface) -> None:
+        surface.fill((18, 24, 22))
+        width, height = surface.get_size()
+        surface.blit(nine_slice(PANEL, (width - 60, height - 60), border=16), (30, 30))
+
+        title_font = load_font(CAPS_FONT, 26)
+        body_font = load_font(BODY_FONT, 16)
+
+        title_surface = title_font.render("NO RUN YET", True, (255, 255, 255))
+        surface.blit(title_surface, (60, 44))
+
+        hint_surface = body_font.render(
+            "Click Start Run to send a character through a 12-floor run.", True, (210, 210, 210)
+        )
+        surface.blit(hint_surface, (60, 100))
+
+        self._draw_start_button(surface, width, height)
+
+    def _draw_start_button(self, surface: pygame.Surface, width: int, height: int) -> None:
+        body_font = load_font(BODY_FONT, 16)
+        button_w, button_h = 160, 50
+        button_x, button_y = width // 2 - button_w // 2, height - 100
+        self.start_button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
+        pygame.draw.rect(surface, (70, 140, 90), self.start_button_rect, border_radius=8)
+        pygame.draw.rect(surface, (20, 20, 20), self.start_button_rect, width=2, border_radius=8)
+        label = body_font.render("Start Run", True, (255, 255, 255))
+        surface.blit(
+            label,
+            (
+                self.start_button_rect.centerx - label.get_width() // 2,
+                self.start_button_rect.centery - label.get_height() // 2,
+            ),
+        )
+
+    def _draw_bank_button(self, surface: pygame.Surface, card_x: int, button_y: int, card_w: int) -> None:
+        body_font = load_font(BODY_FONT, 16)
+        button_w, button_h = card_w - 40, 36
+        button_x = card_x + 20
+        self.bank_button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
+        color = (90, 90, 90) if self.banked else (70, 110, 170)
+        pygame.draw.rect(surface, color, self.bank_button_rect, border_radius=8)
+        pygame.draw.rect(surface, (20, 20, 20), self.bank_button_rect, width=2, border_radius=8)
+        label_text = "Echo Banked" if self.banked else "Bank Echo"
+        label = body_font.render(label_text, True, (255, 255, 255))
+        surface.blit(
+            label,
+            (
+                self.bank_button_rect.centerx - label.get_width() // 2,
+                self.bank_button_rect.centery - label.get_height() // 2,
+            ),
+        )
+
+    def _draw_result(self, surface: pygame.Surface) -> None:
         surface.fill((18, 24, 22))
         width, height = surface.get_size()
 
@@ -113,7 +202,7 @@ class TrainingScreen:
             surface.blit(text, (list_x + 20, row_y + 1))
 
         # Frozen echo summary card (right column).
-        card_x, card_y, card_w, card_h = width - 380, 100, 320, 360
+        card_x, card_y, card_w, card_h = width - 380, 100, 320, 420
         surface.blit(nine_slice(ECHO_CARD, (card_w, card_h), border=14), (card_x, card_y))
         echo = self.run_result.echo
         echo_title = body_font.render("FROZEN ECHO", True, (255, 255, 255))
@@ -142,3 +231,6 @@ class TrainingScreen:
         surface.blit(skills_label, (card_x + 20, instability_y + 36))
         traits_label = small_font.render("traits: " + ", ".join(echo.traits), True, (210, 210, 210))
         surface.blit(traits_label, (card_x + 20, instability_y + 56))
+
+        self._draw_bank_button(surface, card_x, instability_y + 80, card_w)
+        self._draw_start_button(surface, width, height)

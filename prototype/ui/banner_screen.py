@@ -1,7 +1,9 @@
-"""Banner / gacha pull screen skeleton.
+"""Banner / gacha pull screen.
 
-Renders a hardcoded `PullResult` (and the `BannerState` pity/shard info it
-came from) using the asset map in docs/asset_map_iteration_1.md section 1.
+Renders live `PullResult`/`BannerState` data from the shared `GameSession`
+and exposes a clickable "Pull x1" button (asset per
+docs/asset_map_iteration_1.md section 1) that performs a real
+`GachaSystem.pull` against the session and updates the screen.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ import pygame
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from game import GachaSystem, Rarity, sample_characters  # noqa: E402
+from game import Rarity  # noqa: E402
 
 from ui.assets import BODY_FONT, CAPS_FONT, load_font, scaled  # noqa: E402
 
@@ -47,22 +49,37 @@ RARITY_COLORS = {
 
 
 class BannerScreen:
-    """Static demo of the gacha pull screen, driven by real game.py data."""
+    """Interactive gacha pull screen, driven by the shared `GameSession`."""
 
     name = "Banner"
 
-    def __init__(self) -> None:
-        self.characters = sample_characters()
-        self.gacha = GachaSystem(self.characters, seed=7)
-        # Pull a handful of times so pity/shards have realistic state, then
-        # keep the final pull as the "just pulled" result shown on screen.
-        character_id = "star_witch"
-        pulls = self.gacha.pull_batch(character_id, count=12, featured=True)
-        self.latest_pull = pulls[-1]
-        self.character = self.characters[character_id]
-        self.banner_state = self.gacha.banners[character_id]
-        self.resonance = self.gacha.resonance_preview(character_id)
-        self.hard_pity_target = self.gacha.pity_tuning(featured=True)["hard_pity_target"]
+    #: Fixed default banner character for this phase -- a banner-selection
+    #: UI is out of scope here per the task brief.
+    character_id = "star_witch"
+    featured = True
+
+    def __init__(self, session) -> None:
+        self.session = session
+        self.gacha = session.gacha
+        self.character = session.characters[self.character_id]
+        self.banner_state = self.gacha.banners[self.character_id]
+        self.hard_pity_target = self.gacha.pity_tuning(featured=self.featured)["hard_pity_target"]
+        # No pull has happened yet this session -- show a neutral
+        # "not pulled yet" placeholder until the player clicks Pull x1.
+        self.latest_pull = None
+        self.pull_button_rect = pygame.Rect(0, 0, 0, 0)
+
+    @property
+    def resonance(self):
+        return self.gacha.resonance_preview(self.character_id)
+
+    def do_pull(self) -> None:
+        self.latest_pull = self.gacha.pull(self.character_id, featured=self.featured)
+
+    def handle_event(self, event: pygame.event.Event) -> None:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.pull_button_rect.collidepoint(event.pos):
+                self.do_pull()
 
     def draw(self, surface: pygame.Surface) -> None:
         surface.fill((24, 20, 32))
@@ -80,25 +97,32 @@ class BannerScreen:
 
         # Result card.
         card_x, card_y = width // 2 - 110, 170
-        ribbon_path = RARITY_RIBBONS[self.latest_pull.rarity]
-        surface.blit(scaled(ribbon_path, (220, 70)), (card_x, card_y - 10))
-        surface.blit(scaled(RESULT_FRAME, (220, 220)), (card_x, card_y + 40))
-        surface.blit(scaled(AVATAR, (160, 160)), (card_x + 30, card_y + 70))
+        if self.latest_pull is None:
+            surface.blit(scaled(RESULT_FRAME, (220, 220)), (card_x, card_y + 40))
+            surface.blit(scaled(AVATAR, (160, 160)), (card_x + 30, card_y + 70))
+            hint_surface = body_font.render("Pull to reveal a result", True, (200, 200, 200))
+            surface.blit(hint_surface, (card_x + 110 - hint_surface.get_width() // 2, card_y + 260))
+        else:
+            ribbon_path = RARITY_RIBBONS[self.latest_pull.rarity]
+            surface.blit(scaled(ribbon_path, (220, 70)), (card_x, card_y - 10))
+            surface.blit(scaled(RESULT_FRAME, (220, 220)), (card_x, card_y + 40))
+            surface.blit(scaled(AVATAR, (160, 160)), (card_x + 30, card_y + 70))
 
-        rarity_color = RARITY_COLORS[self.latest_pull.rarity]
-        rarity_surface = title_font.render(self.latest_pull.rarity.value.upper(), True, rarity_color)
-        surface.blit(rarity_surface, (card_x + 110 - rarity_surface.get_width() // 2, card_y + 250))
+            rarity_color = RARITY_COLORS[self.latest_pull.rarity]
+            rarity_surface = title_font.render(self.latest_pull.rarity.value.upper(), True, rarity_color)
+            surface.blit(rarity_surface, (card_x + 110 - rarity_surface.get_width() // 2, card_y + 250))
 
-        if self.latest_pull.pity_reset:
-            surface.blit(scaled(PITY_FLASH_ICON, (36, 36)), (card_x + 180, card_y))
-            flash_surface = small_font.render("PITY RESET!", True, (255, 220, 90))
-            surface.blit(flash_surface, (card_x + 20, card_y + 290))
+            if self.latest_pull.pity_reset:
+                surface.blit(scaled(PITY_FLASH_ICON, (36, 36)), (card_x + 180, card_y))
+                flash_surface = small_font.render("PITY RESET!", True, (255, 220, 90))
+                surface.blit(flash_surface, (card_x + 20, card_y + 290))
 
         # Shard counter.
         shard_y = card_y + 320
         surface.blit(scaled(SHARD_ICON, (28, 28)), (card_x + 10, shard_y))
+        shards_gained = self.latest_pull.shards_gained if self.latest_pull else 0
         shard_surface = body_font.render(
-            f"+{self.latest_pull.shards_gained} shards  (total {self.banner_state.shards})",
+            f"+{shards_gained} shards  (total {self.banner_state.shards})",
             True,
             (235, 235, 235),
         )
@@ -127,7 +151,8 @@ class BannerScreen:
 
         # Buttons.
         button_y = height - 140
-        surface.blit(scaled(PULL_BUTTON, (140, 70)), (width // 2 - 260, button_y))
+        self.pull_button_rect = pygame.Rect(width // 2 - 260, button_y, 140, 70)
+        surface.blit(scaled(PULL_BUTTON, (140, 70)), self.pull_button_rect.topleft)
         pull_label = body_font.render("Pull x1", True, (20, 20, 20))
         surface.blit(pull_label, (width // 2 - 260 + 70 - pull_label.get_width() // 2, button_y + 25))
 

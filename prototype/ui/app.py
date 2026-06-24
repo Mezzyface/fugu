@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ui.assets import BODY_FONT, load_font  # noqa: E402
 from ui.banner_screen import BannerScreen  # noqa: E402
 from ui.echo_pool_screen import EchoPoolScreen  # noqa: E402
+from ui.session import GameSession  # noqa: E402
 from ui.training_screen import TrainingScreen  # noqa: E402
 
 WINDOW_SIZE = (1000, 700)
@@ -35,7 +36,12 @@ class App:
         self.clock = pygame.time.Clock()
         self.running = True
 
-        self.screens = [BannerScreen(), TrainingScreen(), EchoPoolScreen()]
+        self.session = GameSession()
+        self.screens = [
+            BannerScreen(self.session),
+            TrainingScreen(self.session),
+            EchoPoolScreen(self.session),
+        ]
         self.active_index = 0
         self.tab_font = load_font(BODY_FONT, 18)
 
@@ -58,7 +64,16 @@ class App:
             elif event.key == pygame.K_TAB:
                 self.active_index = (self.active_index + 1) % len(self.screens)
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            self._handle_tab_click(event.pos)
+            if event.pos[1] <= 36:
+                self._handle_tab_click(event.pos)
+            else:
+                handler = getattr(self.active_screen, "handle_event", None)
+                if handler is not None:
+                    handler(event)
+        else:
+            handler = getattr(self.active_screen, "handle_event", None)
+            if handler is not None:
+                handler(event)
 
     def _handle_tab_click(self, pos) -> None:
         x, y = pos

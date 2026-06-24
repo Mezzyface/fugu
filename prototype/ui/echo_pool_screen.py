@@ -1,7 +1,8 @@
-"""EchoPool screen skeleton.
+"""EchoPool screen.
 
-Renders a hardcoded `EchoPool` with a few banked `EchoRecord`s using the
-asset map in docs/asset_map_iteration_1.md section 3.
+Renders the shared `GameSession`'s live `EchoPool` using the asset map in
+docs/asset_map_iteration_1.md section 3, and wires the existing favorite
+toggle / exchange / delete row controls to real `EchoPool` calls.
 """
 
 from __future__ import annotations
@@ -12,8 +13,6 @@ from pathlib import Path
 import pygame
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from game import EchoPool, TrainingSimulator, sample_characters  # noqa: E402
 
 from ui.assets import BODY_FONT, CAPS_FONT, load_font, nine_slice, scaled  # noqa: E402
 
@@ -47,26 +46,74 @@ ICON_PATHS = {
 
 
 class EchoPoolScreen:
-    """Static demo of the EchoPool screen, driven by real game.py data."""
+    """Interactive EchoPool screen, driven by the shared `GameSession`.
+
+    Each row's existing favorite toggle / exchange / delete button art is
+    made clickable: toggle calls `EchoPool.update_record(favorite=...)`,
+    exchange calls `EchoPool.exchange_echo`, delete calls
+    `EchoPool.delete_echo`. Hit rects are recomputed every `draw()` call
+    (rows can reorder/resize as records change) and consulted in
+    `handle_event`.
+    """
 
     name = "EchoPool"
 
-    def __init__(self) -> None:
-        characters = sample_characters()
-        simulator = TrainingSimulator(seed=5)
-        self.pool = EchoPool(capacity=20, max_favorites=5)
+    def __init__(self, session) -> None:
+        self.session = session
+        self.pool = session.echo_pool
+        self.selected_id = None
+        # record_id -> {"toggle": Rect, "exchange": Rect, "delete": Rect}
+        self._row_controls: dict[int, dict[str, pygame.Rect]] = {}
+        self.message = ""
 
-        run_one = simulator.run(characters["iron_vow"], route="balanced")
-        record_one = self.pool.bank_echo(run_one.echo, icon="shield")
+    def handle_event(self, event: pygame.event.Event) -> None:
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return
+        pos = event.pos
+        for record_id, controls in self._row_controls.items():
+            if controls["toggle"].collidepoint(pos):
+                self._toggle_favorite(record_id)
+                return
+            if controls["exchange"].collidepoint(pos):
+                self._exchange(record_id)
+                return
+            if controls["delete"].collidepoint(pos):
+                self._delete(record_id)
+                return
+            if controls["row"].collidepoint(pos):
+                self.selected_id = record_id
+                return
 
-        run_two = simulator.run(characters["star_witch"], route="skill_hunt", parents=self.pool.best_parents())
-        record_two = self.pool.bank_echo(run_two.echo, icon="star")
-        self.pool.update_record(record_two.id, favorite=True, icon="favorite_star")
+    def _toggle_favorite(self, record_id: int) -> None:
+        record = self.pool.get_record(record_id)
+        if record is None:
+            return
+        try:
+            self.pool.update_record(record_id, favorite=not record.favorite)
+            self.message = ""
+        except ValueError as exc:
+            self.message = str(exc)
 
-        run_three = simulator.run(characters["rat_squire"], route="boss_rush")
-        self.pool.bank_echo(run_three.echo, icon="boss")
+    def _exchange(self, record_id: int) -> None:
+        try:
+            reward = self.pool.exchange_echo(record_id)
+            self.message = (
+                f"Exchanged #{record_id}: +{reward.essence} essence, "
+                f"+{reward.shards} shards, +{reward.relic_rolls} relic rolls"
+            )
+            if self.selected_id == record_id:
+                self.selected_id = None
+        except (KeyError, ValueError) as exc:
+            self.message = str(exc)
 
-        self.selected_id = record_one.id
+    def _delete(self, record_id: int) -> None:
+        try:
+            self.pool.delete_echo(record_id)
+            self.message = f"Deleted echo #{record_id}"
+            if self.selected_id == record_id:
+                self.selected_id = None
+        except (KeyError, ValueError) as exc:
+            self.message = str(exc)
 
     def draw(self, surface: pygame.Surface) -> None:
         surface.fill((20, 18, 26))
@@ -93,6 +140,8 @@ class EchoPoolScreen:
 
         records = self.pool.sorted_records(by="power")
         max_power = max((record.power_score for record in records), default=1)
+
+        self._row_controls = {}
 
         row_x, row_y = 60, 100
         row_h = 86
@@ -130,10 +179,25 @@ class EchoPoolScreen:
                 (row_x + slot_w - 260, row_y + 20),
             )
 
+            toggle_rect = pygame.Rect(row_x + slot_w - 200, row_y + 28, 44, 24)
             toggle_path = TOGGLE_ON if record.favorite else TOGGLE_OFF
-            surface.blit(scaled(toggle_path, (44, 24)), (row_x + slot_w - 200, row_y + 28))
+            surface.blit(scaled(toggle_path, (44, 24)), toggle_rect.topleft)
 
-            surface.blit(scaled(EXCHANGE_BUTTON, (32, 32)), (row_x + slot_w - 140, row_y + 22))
-            surface.blit(scaled(DELETE_BUTTON, (32, 32)), (row_x + slot_w - 90, row_y + 22))
+            exchange_rect = pygame.Rect(row_x + slot_w - 140, row_y + 22, 32, 32)
+            surface.blit(scaled(EXCHANGE_BUTTON, (32, 32)), exchange_rect.topleft)
+
+            delete_rect = pygame.Rect(row_x + slot_w - 90, row_y + 22, 32, 32)
+            surface.blit(scaled(DELETE_BUTTON, (32, 32)), delete_rect.topleft)
+
+            self._row_controls[record.id] = {
+                "row": pygame.Rect(row_x, row_y, slot_w, row_h - 6),
+                "toggle": toggle_rect,
+                "exchange": exchange_rect,
+                "delete": delete_rect,
+            }
 
             row_y += row_h
+
+        if self.message:
+            message_surface = small_font.render(self.message, True, (255, 220, 150))
+            surface.blit(message_surface, (60, height - 36))
