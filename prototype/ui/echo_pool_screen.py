@@ -103,7 +103,13 @@ class EchoPoolScreen:
             )
             if self.selected_id == record_id:
                 self.selected_id = None
-        except (KeyError, ValueError) as exc:
+        except KeyError:
+            # EchoPool.delete_echo/exchange_echo raise bare KeyError(record_id),
+            # which stringifies to just the id (e.g. "99999"). Reword it to
+            # match the descriptive sentence style of the ValueError messages
+            # below instead of surfacing that bare id to the player.
+            self.message = f"no echo with id #{record_id} in the pool"
+        except ValueError as exc:
             self.message = str(exc)
 
     def _delete(self, record_id: int) -> None:
@@ -112,7 +118,9 @@ class EchoPoolScreen:
             self.message = f"Deleted echo #{record_id}"
             if self.selected_id == record_id:
                 self.selected_id = None
-        except (KeyError, ValueError) as exc:
+        except KeyError:
+            self.message = f"no echo with id #{record_id} in the pool"
+        except ValueError as exc:
             self.message = str(exc)
 
     def draw(self, surface: pygame.Surface) -> None:

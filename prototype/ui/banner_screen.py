@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from game import Rarity  # noqa: E402
 
-from ui.assets import BODY_FONT, CAPS_FONT, load_font, scaled  # noqa: E402
+from ui.assets import BODY_FONT, CAPS_FONT, load_font, nine_slice, scaled  # noqa: E402
 
 RARITY_RIBBONS = {
     Rarity.COMMON: "tiny-swords-free-pack/Tiny Swords (Free Pack)/UI Elements/UI Banners from the store page/Ribbons/Ribbon_Black.png",
@@ -63,7 +63,9 @@ class BannerScreen:
         self.gacha = session.gacha
         self.character = session.characters[self.character_id]
         self.banner_state = self.gacha.banners[self.character_id]
-        self.hard_pity_target = self.gacha.pity_tuning(featured=self.featured)["hard_pity_target"]
+        pity_tuning = self.gacha.pity_tuning(featured=self.featured)
+        self.soft_pity_start = pity_tuning["soft_pity_start"]
+        self.hard_pity_target = pity_tuning["hard_pity_target"]
         # No pull has happened yet this session -- show a neutral
         # "not pulled yet" placeholder until the player clicks Pull x1.
         self.latest_pull = None
@@ -128,16 +130,45 @@ class BannerScreen:
         )
         surface.blit(shard_surface, (card_x + 46, shard_y + 4))
 
-        # Pity progress bar.
+        # Pity progress bar. Shows progress toward both the soft-pity
+        # threshold (where legendary odds start ramping up) and the hard
+        # pity target (guaranteed legendary), per task brief item 3.
         bar_x, bar_y, bar_w, bar_h = width // 2 + 160, 220, 260, 28
         surface.blit(scaled(PITY_BAR_TRACK, (bar_w, bar_h)), (bar_x, bar_y))
-        progress = min(1.0, self.banner_state.pulls_since_legendary / self.hard_pity_target)
+        pulls = self.banner_state.pulls_since_legendary
+        in_soft_pity = pulls >= self.soft_pity_start
+        progress = min(1.0, pulls / self.hard_pity_target)
         fill_w = max(1, int(bar_w * progress))
-        surface.blit(scaled(PITY_BAR_FILL, (fill_w, bar_h)), (bar_x, bar_y))
+        fill_surface = scaled(PITY_BAR_FILL, (fill_w, bar_h))
+        if in_soft_pity:
+            # Tint the fill to call out "we're in soft pity now" at a
+            # glance, distinct from the plain fill color pre-soft-pity.
+            tint = pygame.Surface(fill_surface.get_size(), pygame.SRCALPHA)
+            tint.fill((255, 190, 60, 90))
+            fill_surface = fill_surface.copy()
+            fill_surface.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        surface.blit(fill_surface, (bar_x, bar_y))
+
+        # Soft-pity marker: a vertical tick at the soft_pity_start point.
+        soft_pity_x = bar_x + int(bar_w * min(1.0, self.soft_pity_start / self.hard_pity_target))
+        marker_color = (255, 210, 70) if in_soft_pity else (255, 255, 255)
+        pygame.draw.line(
+            surface, marker_color, (soft_pity_x, bar_y - 4), (soft_pity_x, bar_y + bar_h + 4), width=3
+        )
+
+        # Hard-pity marker: a tick right at the end of the bar (guaranteed
+        # legendary point).
+        hard_pity_x = bar_x + bar_w
+        pygame.draw.line(
+            surface, (255, 90, 90), (hard_pity_x - 1, bar_y - 4), (hard_pity_x - 1, bar_y + bar_h + 4), width=3
+        )
+
         pity_label = small_font.render(
-            f"Pity {self.banner_state.pulls_since_legendary}/{self.hard_pity_target}",
+            f"Pity {pulls}/{self.hard_pity_target}"
+            f"  (soft pity at {self.soft_pity_start})"
+            + ("  -- SOFT PITY ACTIVE" if in_soft_pity else ""),
             True,
-            (235, 235, 235),
+            (255, 220, 90) if in_soft_pity else (235, 235, 235),
         )
         surface.blit(pity_label, (bar_x, bar_y - 22))
 
@@ -156,11 +187,26 @@ class BannerScreen:
         pull_label = body_font.render("Pull x1", True, (20, 20, 20))
         surface.blit(pull_label, (width // 2 - 260 + 70 - pull_label.get_width() // 2, button_y + 25))
 
-        surface.blit(scaled(PULL_X10_BUTTON, (160, 70)), (width // 2 + 100, button_y))
+        # NOTE: PULL_X10_BUTTON's source art (BigBlueButton_Regular.png) is a
+        # 320x320 sprite *sheet* of three separate corner/edge pieces, not a
+        # single button -- a plain smoothscale() to a 160x70 rect smeared
+        # those pieces into visible dark bands that the "Pull x10" label sat
+        # on top of (the "ll x" overlap QA flagged). Use the same real
+        # single-button asset as Pull x1 instead, 9-sliced wider, so the
+        # label has a clean, evenly-colored background to render over.
+        pull10_rect = pygame.Rect(width // 2 + 100, button_y, 160, 70)
+        surface.blit(nine_slice(PULL_BUTTON, pull10_rect.size, border=24), pull10_rect.topleft)
         pull10_label = body_font.render("Pull x10", True, (20, 20, 20))
-        surface.blit(pull10_label, (width // 2 + 100 + 80 - pull10_label.get_width() // 2, button_y + 25))
+        surface.blit(
+            pull10_label,
+            (pull10_rect.centerx - pull10_label.get_width() // 2, pull10_rect.centery - pull10_label.get_height() // 2),
+        )
 
-        # Reference the pressed-state asset too, as a faded "last pressed" hint.
+        # Reference the pressed-state asset too, as a faded "last pressed"
+        # hint -- moved clear of both pull buttons' labels (previously sat
+        # directly under Pull x1 at the same x-origin, close enough to its
+        # rounded corner that it visually blended into the x10 button row
+        # at a glance). Centered under the gap between the two buttons.
         pressed_preview = scaled(PULL_BUTTON_PRESSED, (60, 30))
         pressed_preview.set_alpha(120)
-        surface.blit(pressed_preview, (width // 2 - 260, button_y + 80))
+        surface.blit(pressed_preview, (width // 2 - 30, button_y + 80))
