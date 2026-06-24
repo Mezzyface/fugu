@@ -150,11 +150,11 @@ class TrainingScreen:
         title_font = load_font(CAPS_FONT, 26)
         body_font = load_font(BODY_FONT, 16)
 
-        title_surface = title_font.render("NO RUN YET", True, (255, 255, 255))
+        title_surface = title_font.render("NO RUN YET", True, (45, 50, 55))
         surface.blit(title_surface, (60, 44))
 
         hint_surface = body_font.render(
-            "Click Start Run to send a character through a 12-floor run.", True, (210, 210, 210)
+            "Click Start Run to send a character through a 12-floor run.", True, (45, 50, 55)
         )
         surface.blit(hint_surface, (60, 100))
 
@@ -246,7 +246,7 @@ class TrainingScreen:
         shard_line = small_font.render(
             f"+{checkpoint.shards} shards   +{checkpoint.echo_quality_bonus}% echo quality",
             True,
-            (230, 230, 230),
+            (45, 50, 55),
         )
         surface.blit(shard_line, (banner_x + 50, banner_y + 44))
 
@@ -254,7 +254,7 @@ class TrainingScreen:
             f"+{checkpoint.relic_rolls} relic rolls"
             + (f"   +{instability_dividend} instability dividend" if instability_dividend else ""),
             True,
-            (230, 230, 230),
+            (45, 50, 55),
         )
         surface.blit(relic_line, (banner_x + 50, banner_y + 68))
 
@@ -274,7 +274,7 @@ class TrainingScreen:
         else:
             current_floor = self.run_result.encounters[self.revealed_count - 1].floor
             header = f"FLOOR {current_floor} OF 12"
-        title_surface = title_font.render(header, True, (255, 255, 255))
+        title_surface = title_font.render(header, True, (45, 50, 55))
         surface.blit(title_surface, (60, 44))
 
         if playback_finished and self.run_result.victory:
@@ -295,7 +295,7 @@ class TrainingScreen:
             label = small_font.render(
                 f"Floor {record.floor:>2}  {record.kind:<7} pwr {record.power} vs {record.difficulty}",
                 True,
-                (230, 230, 230),
+                (45, 50, 55),
             )
             surface.blit(label, (list_x + 64, row_y + 8))
 
@@ -313,11 +313,11 @@ class TrainingScreen:
             card_x, card_y, card_w, card_h = width - 380, 100, 320, 420
             surface.blit(nine_slice(ECHO_CARD, (card_w, card_h), border=14), (card_x, card_y))
             echo = self.run_result.echo
-            echo_title = body_font.render("FROZEN ECHO", True, (255, 255, 255))
+            echo_title = body_font.render("FROZEN ECHO", True, (45, 50, 55))
             surface.blit(echo_title, (card_x + 20, card_y + 16))
-            source_label = small_font.render(f"source: {echo.source_character_id}", True, (210, 210, 210))
+            source_label = small_font.render(f"source: {echo.source_character_id}", True, (45, 50, 55))
             surface.blit(source_label, (card_x + 20, card_y + 44))
-            lineage_label = small_font.render(f"lineage depth: {echo.lineage_depth}", True, (210, 210, 210))
+            lineage_label = small_font.render(f"lineage depth: {echo.lineage_depth}", True, (45, 50, 55))
             surface.blit(lineage_label, (card_x + 20, card_y + 64))
 
             stat_y = card_y + 96
@@ -326,7 +326,7 @@ class TrainingScreen:
                 row_y = stat_y + index * 30
                 if icon_path:
                     surface.blit(scaled(icon_path, (22, 22)), (card_x + 20, row_y))
-                stat_label = small_font.render(f"{stat_name.upper()}: {value}", True, (235, 235, 235))
+                stat_label = small_font.render(f"{stat_name.upper()}: {value}", True, (45, 50, 55))
                 surface.blit(stat_label, (card_x + 50, row_y + 2))
 
             instability_y = stat_y + len(echo.stats) * 30 + 16
@@ -335,9 +335,9 @@ class TrainingScreen:
             instability_label = small_font.render(f"instability: {echo.instability}", True, (255, 180, 90))
             surface.blit(instability_label, (card_x + 50, instability_y + 2))
 
-            skills_label = small_font.render("skills: " + ", ".join(echo.skills), True, (210, 210, 210))
+            skills_label = small_font.render("skills: " + ", ".join(echo.skills), True, (45, 50, 55))
             surface.blit(skills_label, (card_x + 20, instability_y + 36))
-            traits_label = small_font.render("traits: " + ", ".join(echo.traits), True, (210, 210, 210))
+            traits_label = small_font.render("traits: " + ", ".join(echo.traits), True, (45, 50, 55))
             surface.blit(traits_label, (card_x + 20, instability_y + 56))
 
             self._draw_bank_button(surface, card_x, instability_y + 80, card_w)

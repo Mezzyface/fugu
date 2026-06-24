@@ -133,7 +133,7 @@ class EchoPoolScreen:
         body_font = load_font(BODY_FONT, 16)
         small_font = load_font(BODY_FONT, 13)
 
-        title_surface = title_font.render("ECHO POOL", True, (255, 255, 255))
+        title_surface = title_font.render("ECHO POOL", True, (45, 50, 55))
         surface.blit(title_surface, (60, 44))
 
         capacity_x, capacity_y, capacity_w, capacity_h = width - 280, 50, 200, 22
@@ -142,7 +142,7 @@ class EchoPoolScreen:
         fill_w = max(1, int(capacity_w * ratio))
         surface.blit(scaled(CAPACITY_FILL, (fill_w, capacity_h)), (capacity_x, capacity_y))
         capacity_label = small_font.render(
-            f"{len(self.pool)}/{self.pool.capacity}", True, (235, 235, 235)
+            f"{len(self.pool)}/{self.pool.capacity}", True, (45, 50, 55)
         )
         surface.blit(capacity_label, (capacity_x, capacity_y - 18))
 
@@ -168,15 +168,15 @@ class EchoPoolScreen:
 
             text_x = row_x + 90
             id_label = body_font.render(
-                f"Echo #{record.id}  ({record.echo.source_character_id})", True, (255, 255, 255)
+                f"Echo #{record.id}  ({record.echo.source_character_id})", True, (45, 50, 55)
             )
             surface.blit(id_label, (text_x, row_y + 6))
 
-            power_label = small_font.render(f"power score: {record.power_score}", True, (220, 220, 220))
+            power_label = small_font.render(f"power score: {record.power_score}", True, (45, 50, 55))
             surface.blit(power_label, (text_x, row_y + 30))
 
             surface.blit(scaled(LINEAGE_ICON, (18, 18)), (text_x + 220, row_y + 28))
-            lineage_label = small_font.render(str(record.echo.lineage_depth), True, (220, 220, 220))
+            lineage_label = small_font.render(str(record.echo.lineage_depth), True, (45, 50, 55))
             surface.blit(lineage_label, (text_x + 242, row_y + 30))
 
             ring_diameter = 40

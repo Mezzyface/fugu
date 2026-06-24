@@ -102,7 +102,7 @@ class BannerScreen:
         if self.latest_pull is None:
             surface.blit(scaled(RESULT_FRAME, (220, 220)), (card_x, card_y + 40))
             surface.blit(scaled(AVATAR, (160, 160)), (card_x + 30, card_y + 70))
-            hint_surface = body_font.render("Pull to reveal a result", True, (200, 200, 200))
+            hint_surface = body_font.render("Pull to reveal a result", True, (45, 50, 55))
             surface.blit(hint_surface, (card_x + 110 - hint_surface.get_width() // 2, card_y + 260))
         else:
             ribbon_path = RARITY_RIBBONS[self.latest_pull.rarity]
@@ -126,7 +126,7 @@ class BannerScreen:
         shard_surface = body_font.render(
             f"+{shards_gained} shards  (total {self.banner_state.shards})",
             True,
-            (235, 235, 235),
+            (45, 50, 55),
         )
         surface.blit(shard_surface, (card_x + 46, shard_y + 4))
 
@@ -168,13 +168,13 @@ class BannerScreen:
             f"  (soft pity at {self.soft_pity_start})"
             + ("  -- SOFT PITY ACTIVE" if in_soft_pity else ""),
             True,
-            (255, 220, 90) if in_soft_pity else (235, 235, 235),
+            (255, 220, 90) if in_soft_pity else (45, 50, 55),
         )
         surface.blit(pity_label, (bar_x, bar_y - 22))
 
         # Resonance nodes.
         node_y = bar_y + 60
-        node_label = small_font.render("Resonance", True, (235, 235, 235))
+        node_label = small_font.render("Resonance", True, (45, 50, 55))
         surface.blit(node_label, (bar_x, node_y - 22))
         for index, node in enumerate(self.resonance):
             icon_path = RESONANCE_FULL if node["unlocked"] else RESONANCE_EMPTY
