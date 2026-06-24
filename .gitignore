@@ -1,0 +1,5 @@
+.autoloop-runs/
+__pycache__/
+*.pyc
+Game-Assets/
+prototype/assets/
