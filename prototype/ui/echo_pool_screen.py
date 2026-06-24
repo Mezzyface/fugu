@@ -15,11 +15,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from game import EchoPool, TrainingSimulator, sample_characters  # noqa: E402
 
-from ui.assets import BODY_FONT, CAPS_FONT, load_font, scaled  # noqa: E402
+from ui.assets import BODY_FONT, CAPS_FONT, load_font, nine_slice, scaled  # noqa: E402
 
 PANEL = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/panel.standard/panel_0.png"
 SLOT_FRAME = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/inventory_slot.standard/inventory_slot_1.png"
-SELECTION_FRAME = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/selection_frame_square.standard/selection_frame_square_0.png"
+# selection_frame_square_0.png is a small (38x38) open corner-bracket shape,
+# not a closed rectangular frame, so it can't be 9-sliced. Rows are wide
+# (~880px) and stretching the 38px source that far smears it into a solid
+# black blob (the bug QA reported). Draw a rounded-rect outline instead,
+# using the border color sampled from that source art, and reserve the PNG
+# itself for any future use at native-ish size.
+SELECTION_FRAME_COLOR = (63, 63, 63)
 TOGGLE_OFF = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/toggle_button.standard/toggle_button_0.png"
 TOGGLE_ON = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/toggle_button.green/toggle_button_0.png"
 DELETE_BUTTON = "tiny-swords-free-pack/Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallRedRoundButton_Regular.png"
@@ -66,7 +72,7 @@ class EchoPoolScreen:
         surface.fill((20, 18, 26))
         width, height = surface.get_size()
 
-        surface.blit(scaled(PANEL, (width - 60, height - 60)), (30, 30))
+        surface.blit(nine_slice(PANEL, (width - 60, height - 60), border=16), (30, 30))
 
         title_font = load_font(CAPS_FONT, 26)
         body_font = load_font(BODY_FONT, 16)
@@ -94,7 +100,10 @@ class EchoPoolScreen:
             slot_w = width - 120
             is_selected = record.id == self.selected_id
             if is_selected:
-                surface.blit(scaled(SELECTION_FRAME, (slot_w, row_h - 6)), (row_x, row_y))
+                selection_rect = pygame.Rect(row_x, row_y, slot_w, row_h - 6)
+                pygame.draw.rect(
+                    surface, SELECTION_FRAME_COLOR, selection_rect, width=3, border_radius=10
+                )
             surface.blit(scaled(SLOT_FRAME, (70, row_h - 10)), (row_x, row_y + 2))
 
             icon_path = ICON_PATHS.get(record.icon, ICON_PATHS["default"])

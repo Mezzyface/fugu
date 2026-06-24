@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from game import TrainingSimulator, sample_characters  # noqa: E402
 
-from ui.assets import BODY_FONT, CAPS_FONT, load_font, scaled  # noqa: E402
+from ui.assets import BODY_FONT, CAPS_FONT, load_font, nine_slice, scaled  # noqa: E402
 
 PANEL = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/panel.standard/panel_0.png"
 ROW_BG = "isle-of-lore-2-ui-pack-final/Sources/output/ui_pack_elements/box.standard/box_0.png"
@@ -58,7 +58,7 @@ class TrainingScreen:
         surface.fill((18, 24, 22))
         width, height = surface.get_size()
 
-        surface.blit(scaled(PANEL, (width - 60, height - 60)), (30, 30))
+        surface.blit(nine_slice(PANEL, (width - 60, height - 60), border=16), (30, 30))
 
         title_font = load_font(CAPS_FONT, 26)
         body_font = load_font(BODY_FONT, 16)
@@ -76,7 +76,7 @@ class TrainingScreen:
         row_h = 36
         for index, record in enumerate(self.run_result.encounters):
             row_y = list_y + index * row_h
-            surface.blit(scaled(ROW_BG, (360, row_h - 4)), (list_x, row_y))
+            surface.blit(nine_slice(ROW_BG, (360, row_h - 4), border=10), (list_x, row_y))
             icon_path = ENCOUNTER_ICONS.get(record.kind, ENCOUNTER_ICONS["combat"])
             surface.blit(scaled(icon_path, (24, 24)), (list_x + 6, row_y + 4))
             status_icon = CHECKMARK if record.cleared else CROSS
@@ -114,7 +114,7 @@ class TrainingScreen:
 
         # Frozen echo summary card (right column).
         card_x, card_y, card_w, card_h = width - 380, 100, 320, 360
-        surface.blit(scaled(ECHO_CARD, (card_w, card_h)), (card_x, card_y))
+        surface.blit(nine_slice(ECHO_CARD, (card_w, card_h), border=14), (card_x, card_y))
         echo = self.run_result.echo
         echo_title = body_font.render("FROZEN ECHO", True, (255, 255, 255))
         surface.blit(echo_title, (card_x + 20, card_y + 16))
