@@ -203,12 +203,15 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
         "## Outputs / Deliverables",
         outputs or "_(none provided)_",
     ]
+    manifest_note = (
+        "> **Keep `deliverables/manifest.md` current.** If this task creates or completes any"
+        " tracked deliverable (code, doc, or external artifact), update that file in your"
+        f" changes: tick the item off (or add a line) and link the in-repo path or external"
+        f" URL plus this issue number (#{task.number})."
+    )
     if is_deliverable:
-        lines += [
-            "",
-            "> This task is labelled `deliverable`: update `deliverables/manifest.md`"
-            " in your changes (check the item off + link the path or external URL).",
-        ]
+        manifest_note += " This task is labelled `deliverable`, so a manifest update is **required**."
+    lines += ["", manifest_note]
     lines += [
         "",
         "## Verification commands",
@@ -565,8 +568,12 @@ def _self_test() -> int:
     check("select picks agent-ready", [t.number for t in sel], [1, 5])
     sel0 = select_ready(tasks, in_progress=2, max_concurrency=2, status_values=sv, labels_cfg=labels)
     check("select respects concurrency", sel0, [])
-    md = build_task_md(tasks[4], parse_issue_body(""), labels)
-    check("deliverable note present", "deliverables/manifest.md" in md, True)
+    md_deliv = build_task_md(tasks[4], parse_issue_body(""), labels)   # deliverable-labelled
+    md_plain = build_task_md(tasks[0], parse_issue_body(""), labels)   # not labelled
+    check("manifest note present (deliverable)", "deliverables/manifest.md" in md_deliv, True)
+    check("manifest note present (plain)", "deliverables/manifest.md" in md_plain, True)
+    check("required wording for deliverable", "required" in md_deliv, True)
+    check("no required wording for plain", "required" in md_plain, False)
 
     print("\nSELF-TEST:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
