@@ -1,0 +1,26 @@
+{
+  "owner": "Mezzyface",
+  "owner_type": "user",
+  "project_number": 1,
+  "repo": "Mezzyface/fugu",
+  "base_branch": "master",
+  "poll_interval_seconds": 120,
+  "max_concurrency": 1,
+  "agent": "claude",
+  "model": "claude-opus-4-8",
+  "allowed_tools": "Edit,Write,Read,Bash,Glob,Grep,mcp__godot__*",
+  "status_field": "Status",
+  "status_values": {
+    "ready": "Ready",
+    "in_progress": "In progress",
+    "in_review": "In review",
+    "needs_human": "Needs Human"
+  },
+  "labels": {
+    "agent": "agent:claude",
+    "human": "human",
+    "deliverable": "deliverable"
+  },
+  "worktree_dir": ".dispatch-wt",
+  "runs_dir": ".dispatch-runs"
+}

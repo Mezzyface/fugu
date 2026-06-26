@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 Game-Assets/
 prototype/assets/
+
+# Board dispatcher
+.dispatch/
+.dispatch-runs/
+.dispatch-wt/
+tools/dispatch_state.json
+.godot/

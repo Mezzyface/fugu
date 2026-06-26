@@ -1,0 +1,80 @@
+name: Agent Task
+description: A scoped task for the board dispatcher (agent) or a human.
+title: "[Task] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One task = one PR. Keep it scoped and independently verifiable.
+        Add this issue to the **Mezzyface/projects/1** board and set Status to
+        `Ready` when it's approved for pickup. Label `agent:claude` for the
+        dispatcher to run it, or `human` for a human-only task.
+  - type: dropdown
+    id: assignee
+    attributes:
+      label: Assignee
+      description: Who should execute this task?
+      options:
+        - agent (claude)
+        - human
+    validations:
+      required: true
+  - type: dropdown
+    id: deliverable_type
+    attributes:
+      label: Deliverable type
+      options:
+        - code
+        - doc
+        - non-code artifact
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / Goal
+      description: What and why. Enough for an agent to act without prior chat history.
+    validations:
+      required: true
+  - type: textarea
+    id: resources
+    attributes:
+      label: Resources
+      description: |
+        Asset paths, related files, doc links, design references the agent will need.
+      placeholder: |
+        - game/assets/ui/...
+        - docs/gdd_iteration_1.md
+        - https://docs.godotengine.org/en/stable/...
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Checklist that must all be true for the task to be Done.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: outputs
+    attributes:
+      label: Outputs / Deliverables
+      description: |
+        The concrete artifacts this task produces. For non-code artifacts, note that
+        `deliverables/manifest.md` must be updated in the PR.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification commands
+      description: Exact commands the agent (and reviewer) run to verify the work.
+      placeholder: |
+        gdlint game/
+        godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit
+    validations:
+      required: false
