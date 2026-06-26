@@ -22,4 +22,5 @@ Format: `- [ ] <name> — <type> — <link or path> (#issue)`
 
 ## Design
 
+- [x] Art direction decided (fonts, sprites, terrain, palette) — doc — `docs/art_direction.md` (#9)
 - [ ] GDD ported/updated for Godot — doc — `docs/` (TBD)
