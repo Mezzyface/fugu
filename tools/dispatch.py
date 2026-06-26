@@ -665,6 +665,138 @@ def run_qa(config: Config, state: dict, task: Task, agent: Agent,
         remove_worktree(wt)
 
 
+# ---- rework (send a PR back for changes) -------------------------------------
+# A rework task revises an EXISTING PR in place: a fresh agent checks out the PR
+# branch, makes the requested changes, and the dispatcher pushes them back to the
+# same branch (updating the PR) and re-renders screenshots. Reuses the qa-meta
+# block (pr/branch/impl) to know which PR to revise.
+def is_rework_task(task: "Task", labels_cfg: Dict[str, str]) -> bool:
+    return labels_cfg.get("rework", "rework") in task.labels
+
+
+def comment_pr(config: Config, pr: str, body: str) -> None:
+    _run(["gh", "pr", "comment", str(pr), "--repo", config.repo, "--body", body])
+
+
+def build_rework_md(task: "Task", meta: Dict[str, str], changes: str, repo: str) -> str:
+    pr = meta.get("pr", "?"); branch = meta.get("branch", "?"); impl = meta.get("impl", "?")
+    return "\n".join([
+        f"# Rework of PR #{pr} (branch `{branch}`, implements #{impl})",
+        "",
+        "A reviewer asked for changes. The current work is already checked out on this branch.",
+        "Make ONLY the requested changes; keep everything else. Do NOT open a PR — the dispatcher",
+        "pushes your commit to the existing branch, which updates the PR.",
+        "",
+        "## Requested changes",
+        changes or "_(see the PR review)_",
+        "",
+        "## Steps",
+        "1. Make the requested changes.",
+        "2. Run `bash tools/verify.sh` and confirm it passes.",
+        f"3. If the change is visual, re-capture the affected screen(s) into `screenshots/{impl}/`",
+        "   with `tools/shoot.sh`, OVERWRITING the existing PNGs so the PR's screenshots update.",
+        "",
+        "---",
+        "End your final message with exactly one sentinel on its own line:",
+        f"  {TASK_DONE}                       (changes made and verified)",
+        f"  {NEEDS_HUMAN} <one-line reason>   (blocked)",
+    ]) + "\n"
+
+
+def create_rework_worktree(config: Config, branch: str, run_id: str, number: int) -> Path:
+    """Worktree on a temp local branch at the PR head, so commits can be pushed back."""
+    wt_root = ROOT / config.worktree_dir
+    wt_root.mkdir(parents=True, exist_ok=True)
+    wt = wt_root / f"rework-{number}-{run_id}"
+    _run(["git", "fetch", "origin", branch], cwd=ROOT, check=True)
+    _run(["git", "worktree", "add", str(wt), "-B", f"__rework_{number}", "FETCH_HEAD"],
+         cwd=ROOT, check=True)
+    return wt
+
+
+def run_rework(config: Config, state: dict, task: Task, agent: Agent,
+               run_id: str, log: Callable[[str], None]) -> str:
+    meta = parse_qa_meta(task.body)
+    branch, pr = meta.get("branch"), meta.get("pr")
+    if not branch or not pr:
+        set_status(config, state, task, "needs_human")
+        comment_issue(config, task.number, "🚧 Rework task missing its branch/PR meta; needs a human.")
+        return "needs_human"
+    set_status(config, state, task, "in_progress")
+    comment_issue(config, task.number, f"🤖 Rework started (run `{run_id}`): revising PR #{pr} on `{branch}`.")
+    wt = create_rework_worktree(config, branch, run_id, task.number)
+    try:
+        parsed = parse_issue_body(task.body)
+        changes = _section(parsed, "requested", "change", "context", "goal") or task.body
+        rmd = build_rework_md(task, meta, changes, config.repo)
+        (wt / ".dispatch").mkdir(exist_ok=True)
+        (wt / ".dispatch" / "TASK.md").write_text(rmd)
+        prompt = ("You are revising an existing PR. Follow .dispatch/TASK.md exactly "
+                  "(reproduced below). Follow CLAUDE.md.\n\n" + rmd)
+        log_path = ROOT / config.runs_dir / f"rework-{task.number}-{run_id}.log"
+        rc, out = agent.run(wt, prompt, log_path)
+        verdict, message = classify_result(rc, out)
+        log(f"  rework verdict: {verdict} {('- ' + message) if message else ''}")
+        if verdict == "ok":
+            _run(["git", "add", "-A"], cwd=wt, check=True)
+            code, _ = _run(["git", "diff", "--cached", "--quiet"], cwd=wt)
+            if code == 0:
+                set_status(config, state, task, "needs_human")
+                comment_issue(config, task.number,
+                              f"⚠️ Rework agent produced no changes. Needs human. Log: `{log_path.name}`")
+                return "no_changes"
+            _run(["git", "commit", "-m",
+                  f"Rework: address review on PR #{pr}\n\n"
+                  f"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"], cwd=wt, check=True)
+            code, out = _run(["git", "push", "origin", f"HEAD:{branch}"], cwd=wt)
+            if code != 0:
+                raise RuntimeError(f"rework push failed:\n{out}")
+            set_status(config, state, task, "done")
+            comment_pr(config, pr, f"🔧 Revised per the rework request (run `{run_id}`); please re-review.")
+            comment_issue(config, task.number, f"✅ Pushed revisions to PR #{pr}; closing rework.")
+            _run(["gh", "issue", "close", str(task.number), "--repo", config.repo])
+            return "reworked"
+        set_status(config, state, task, "needs_human")
+        comment_issue(config, task.number,
+                      f"🚧 Rework → Needs Human ({verdict}): {message}. Log: `{log_path.name}`")
+        return verdict
+    finally:
+        remove_worktree(wt)
+        _run(["git", "branch", "-D", f"__rework_{task.number}"], cwd=ROOT)
+
+
+def create_rework_task(config: Config, state: dict, pr_number: int, message: str,
+                       log: Callable[[str], None]) -> Optional[str]:
+    """File a rework task for an open PR. Looks up the PR's head branch + origin issue."""
+    code, out = _run(["gh", "pr", "view", str(pr_number), "--repo", config.repo,
+                      "--json", "headRefName,title"])
+    if code != 0:
+        log(f"[rework] gh pr view #{pr_number} failed:\n{out}"); return None
+    info = json.loads(out)
+    branch = info["headRefName"]; title = info.get("title", "")
+    m = re.search(r"task/(\d+)-", branch)
+    impl = m.group(1) if m else str(pr_number)
+    body = (f"<!-- qa-meta pr={pr_number} branch={branch} impl={impl} -->\n\n"
+            f"Reviewer requested changes on PR #{pr_number} ({title}).\n\n"
+            f"### Requested changes\n\n{message}\n")
+    code, out = _run(["gh", "issue", "create", "--repo", config.repo,
+                      "--title", f"[Rework] PR #{pr_number}: {message[:48]}",
+                      "--body", body, "--label", config.labels["agent"],
+                      "--label", config.labels.get("rework", "rework")])
+    if code != 0:
+        log(f"[rework] issue create failed:\n{out}"); return None
+    url = out.strip().splitlines()[-1]
+    code, out = _run(["gh", "project", "item-add", str(config.project_number),
+                      "--owner", config.owner, "--url", url, "--format", "json"])
+    if code == 0:
+        try:
+            _set_status_by_item(config, state, json.loads(out)["id"], "ready")
+        except (json.JSONDecodeError, KeyError) as exc:
+            log(f"[rework] board add issue: {exc}")
+    log(f"[rework] filed: {url}")
+    return url
+
+
 # ---- dispatch one task -------------------------------------------------------
 def dispatch_one(config: Config, state: dict, task: Task, agent: Agent, act: bool,
                  log: Callable[[str], None]) -> str:
@@ -675,6 +807,12 @@ def dispatch_one(config: Config, state: dict, task: Task, agent: Agent, act: boo
             log("  [no-act] would: QA the PR branch, comment PASS/FAIL, close or Needs Human")
             return "skipped"
         return run_qa(config, state, task, agent, run_id, log)
+    if is_rework_task(task, config.labels):
+        log(f"[rework] #{task.number} '{task.title}' (run {run_id})")
+        if not act:
+            log("  [no-act] would: revise the PR branch in place, push, re-screenshot, close")
+            return "skipped"
+        return run_rework(config, state, task, agent, run_id, log)
     log(f"[dispatch] #{task.number} '{task.title}' -> branch {task.branch} (run {run_id})")
     if not act:
         log(f"  [no-act] would: set In Progress, worktree, run agent, PR, set In Review")
@@ -783,7 +921,7 @@ def _self_test() -> int:
     check("parse verification", _section(parsed, "verification"), "gdlint game/")
 
     labels = {"agent": "agent:claude", "human": "human", "deliverable": "deliverable",
-              "qa": "qa", "ui": "ui"}
+              "qa": "qa", "ui": "ui", "rework": "rework"}
     sv = {"ready": "Ready", "in_progress": "In Progress", "in_review": "In Review",
           "needs_human": "Needs Human"}
     mk = lambda n, status, lbls, asg=[]: Task(
@@ -838,6 +976,16 @@ def _self_test() -> int:
     check("qa md uses gh pr comment", "gh pr comment 13" in qmd, True)
     check("qa md frames verifier role", "verifier" in qmd, True)
 
+    # Rework (send-back) logic
+    check("is_rework_task true", is_rework_task(mk(9, "Ready", ["agent:claude", "rework"]), labels), True)
+    check("is_rework_task false", is_rework_task(mk(9, "Ready", ["agent:claude"]), labels), False)
+    rmd = build_rework_md(mk(9, "Ready", ["rework"]),
+                          {"pr": "27", "branch": "task/21-x", "impl": "21"},
+                          "fix the nine-patch margins", "o/r")
+    check("rework md targets the branch", "task/21-x" in rmd, True)
+    check("rework md re-screenshots impl", "screenshots/21/" in rmd, True)
+    check("rework md says no new PR", "Do NOT open a PR" in rmd, True)
+
     print("\nSELF-TEST:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
@@ -879,6 +1027,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--dry-run", action="store_true", help="Scripted board+agent, no network")
     p.add_argument("--self-test", action="store_true", help="Pure-logic checks, then exit")
     p.add_argument("--interval", type=int, default=None, help="Override poll interval (seconds)")
+    p.add_argument("--rework", type=int, metavar="PR", default=None,
+                   help="File a rework task to revise the given open PR (use with --message)")
+    p.add_argument("--message", default=None, help="The requested-changes note for --rework")
+    p.add_argument("--task", type=int, metavar="ISSUE", default=None,
+                   help="Dispatch one specific board issue now (bypasses selection order)")
     args = p.parse_args(argv)
 
     if args.self_test:
@@ -892,6 +1045,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     interval = args.interval if args.interval is not None else config.poll_interval_seconds
 
     def log(s): print(s, flush=True)
+
+    if args.rework is not None:
+        fetch_board(config, state); save_state(DEFAULT_STATE, state)  # resolve ids
+        url = create_rework_task(config, state, args.rework,
+                                 args.message or "See the PR review for requested changes.", log)
+        return 0 if url else 1
+
+    if args.task is not None:
+        tasks = fetch_board(config, state); save_state(DEFAULT_STATE, state)
+        target = next((t for t in tasks if t.number == args.task), None)
+        if target is None:
+            log(f"[dispatch] issue #{args.task} not found on the board"); return 1
+        dispatch_one(config, state, target, agent, act=not args.no_act, log=log)
+        return 0
 
     if args.once:
         poll_once(config, state, agent, act=not args.no_act, log=log)
