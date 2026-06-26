@@ -15,7 +15,7 @@ Format: `- [ ] <name> — <type> — <link or path> (#issue)`
 
 ## Game (Godot)
 
-- [ ] Godot 4.7 project scaffold — code — `game/` (#1)
+- [x] Godot 4.7 project scaffold — code — `game/` (#6)
 - [ ] Verification wrapper + GUT — code — `tools/verify.sh`, `game/addons/gut/` (#2)
 - [ ] Asset import (first subset) — non-code artifact — `game/assets/` (#3)
 
