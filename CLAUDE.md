@@ -36,8 +36,12 @@ run, your task is in `.dispatch/TASK.md`.
 - Format and lint GDScript before finishing:
   - `gdformat game/` (auto-format)
   - `gdlint game/` (lint; fix warnings)
-- Tests use **GUT** (Godot Unit Test) under `game/addons/gut/`, run headless:
+- Tests use **GUT** (Godot Unit Test) under `game/addons/gut/`, run headless. You MUST
+  run an import pass first, or GUT's `class_name`s won't resolve **and it still exits 0**
+  (a false pass):
+  - `godot --headless --import`
   - `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit`
+  Always confirm the output says "All tests passed!" — don't trust the exit code alone.
 - A convenience wrapper lives at `tools/verify.sh` once task #2 lands.
 
 ### Godot binary / paths (WSL note)
