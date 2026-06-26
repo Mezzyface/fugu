@@ -42,7 +42,13 @@ run, your task is in `.dispatch/TASK.md`.
   - `godot --headless --import`
   - `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit`
   Always confirm the output says "All tests passed!" — don't trust the exit code alone.
-- A convenience wrapper lives at `tools/verify.sh` once task #2 lands.
+- **Standard verification command:** `bash tools/verify.sh`. It runs the GDScript lint
+  gate (`gdformat --check` + `gdlint` over `game/`) and the GUT suite headless (import
+  pass first, then asserts the "All tests passed!" banner), and **exits non-zero if
+  either fails** — so the dispatcher and reviewers run one script. If `gdtoolkit`
+  (`gdformat`/`gdlint`) isn't installed it prints an install hint and skips the lint
+  step rather than hard-failing; pass `--strict-lint` to make a missing gdtoolkit a
+  failure. Override the Godot binary with the `GODOT` env var if it's not on `PATH`.
 
 ### Godot binary / paths (WSL note)
 
