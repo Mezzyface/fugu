@@ -1,0 +1,29 @@
+Steven Colling Font License 1.0
+26. OCT 2021
+
+Font: Honeyblot Caps
+Author: Steven Colling
+Contact: info@stevencolling.com
+
+If you bought a proper license of the font, you can use the font in an
+unlimited amount of projects, both commercial and non-commercial,
+including video games, software, print products and websites.
+
+You can install the font on as many of your machines as you like.
+
+Do not distribute the font or any modification of it or make
+it otherwise available to others, except if the distribution
+is a technical necessity of the product you are creating, including:
+
+- You game or software requires the font file or a bitmap export of it
+to make the font work in the game or software.
+
+- You embed the font on your website to render it, which requires to
+upload it to your webspace.
+
+Do not sell the font or any modification of it.
+
+For the love of god, do not upload it to font websites or distribute
+it in font packs.
+
+Attribution is appreciated but not required.

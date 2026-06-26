@@ -1,0 +1,140 @@
+[gd_scene load_steps=8 format=3 uid="uid://cfuguuishowc0"]
+
+[ext_resource type="Texture2D" uid="uid://b17grhemcitrn" path="res://assets/ui/panels/panel.png" id="1_panel"]
+[ext_resource type="Texture2D" uid="uid://dbr28fkij0714" path="res://assets/ui/panels/dialog_box.png" id="2_dialog"]
+[ext_resource type="Texture2D" uid="uid://dmy7qgatestno" path="res://assets/ui/buttons/button_round_big.png" id="3_button"]
+[ext_resource type="Texture2D" uid="uid://csvdh1qmprng1" path="res://assets/ui/bars/progress_bar_track.png" id="4_bar_track"]
+[ext_resource type="Texture2D" uid="uid://b8y7g3bs6ssh6" path="res://assets/ui/bars/progress_bar_fill.png" id="5_bar_fill"]
+[ext_resource type="FontFile" uid="uid://yfrg4cm4ls0o" path="res://assets/ui/fonts/honeyblot_caps.ttf" id="6_title_font"]
+[ext_resource type="FontFile" uid="uid://dsleynor6qpyl" path="res://assets/ui/fonts/HoneyPigeon.ttf" id="7_body_font"]
+
+[node name="UiShowcase" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.094118, 0.105882, 0.141176, 1)
+
+[node name="Panel" type="NinePatchRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -210.0
+offset_right = 300.0
+offset_bottom = 210.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_panel")
+patch_margin_left = 12
+patch_margin_top = 10
+patch_margin_right = 12
+patch_margin_bottom = 10
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 32
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.14118, 0.16078, 0.23922, 1)
+theme_override_fonts/font = ExtResource("6_title_font")
+theme_override_font_sizes/font_size = 44
+text = "Echo Pool"
+horizontal_alignment = 1
+
+[node name="Body" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.27451, 0.30196, 0.36078, 1)
+theme_override_fonts/font = ExtResource("7_body_font")
+theme_override_font_sizes/font_size = 22
+text = "Isle of Lore 2 UI pack — nine-sliced panel chrome with the honeyblot caps display face for headings and HoneyPigeon for body copy."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Dialog" type="NinePatchRect" parent="Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 90)
+layout_mode = 2
+size_flags_vertical = 3
+texture = ExtResource("2_dialog")
+patch_margin_left = 13
+patch_margin_top = 13
+patch_margin_right = 13
+patch_margin_bottom = 13
+
+[node name="DialogText" type="Label" parent="Panel/Margin/VBox/Dialog"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_fonts/font = ExtResource("7_body_font")
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.20392, 0.20392, 0.20392, 1)
+text = "Nested dialog_box nine-patch — corners stay crisp at any size."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ProgressTrack" type="NinePatchRect" parent="Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+texture = ExtResource("4_bar_track")
+patch_margin_left = 14
+patch_margin_top = 14
+patch_margin_right = 14
+patch_margin_bottom = 14
+
+[node name="ProgressFill" type="NinePatchRect" parent="Panel/Margin/VBox/ProgressTrack"]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 0.0
+offset_top = -14.0
+offset_right = 200.0
+offset_bottom = 14.0
+grow_vertical = 2
+texture = ExtResource("5_bar_fill")
+patch_margin_left = 14
+patch_margin_top = 14
+patch_margin_right = 14
+patch_margin_bottom = 14
+
+[node name="Button" type="TextureButton" parent="Panel/Margin/VBox"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+texture_normal = ExtResource("3_button")
+ignore_texture_size = true
+stretch_mode = 5
