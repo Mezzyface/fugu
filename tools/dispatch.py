@@ -428,11 +428,14 @@ def commit_push_pr(config: Config, task: Task, wt: Path, run_id: str) -> Optiona
     body = (f"Closes #{task.number}\n\nAutomated by the board dispatcher "
             f"(run `{run_id}`). Please review.\n\n"
             f"🤖 Generated with [Claude Code](https://claude.com/claude-code)")
+    # Run from the main repo, not the linked worktree: gh 2.93 fails with
+    # "not a git repository: (NULL)" inside linked worktrees. The branch is
+    # already pushed, so an explicit --head + --repo is sufficient here.
     code, out = _run([
         "gh", "pr", "create", "--repo", config.repo,
         "--base", config.base_branch, "--head", task.branch,
         "--title", task.title, "--body", body,
-    ], cwd=wt)
+    ], cwd=ROOT)
     if code != 0:
         raise RuntimeError(f"gh pr create failed:\n{out}")
     return out.strip().splitlines()[-1] if out.strip() else None
