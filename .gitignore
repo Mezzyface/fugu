@@ -10,3 +10,7 @@ prototype/assets/
 .dispatch-wt/
 tools/dispatch_state.json
 .godot/
+
+# Screenshot capture temp (tools/shoot.sh)
+game/.__shot.png
+game/.__shot.png.import

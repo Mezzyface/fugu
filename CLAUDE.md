@@ -59,6 +59,21 @@ from WSL via interop. A Windows Godot build expects Windows-style project paths
 passing project paths to the binary directly. The `godot` MCP server abstracts most of
 this — prefer it for launching/running.
 
+## Screenshots for visual changes
+
+Any change that affects what's on screen (scenes, UI, art, layout, shaders) must include a
+screenshot in the PR so it can be reviewed visually. Capture with:
+
+```bash
+bash tools/shoot.sh res://<scene>.tscn screenshots/<issue#>/<name>.png
+```
+
+This renders **windowed** (Godot's `--headless` draws nothing) and writes the PNG into the
+repo. Commit the PNG(s) under `screenshots/<issue#>/` — the dispatcher embeds every PNG in
+that folder into the PR body automatically. Open each screenshot and confirm it actually
+shows the intended result before finishing. Tasks labelled `ui` are reminded of this in
+their `TASK.md`, and QA re-renders and compares for `ui` tasks.
+
 ## MCP tools
 
 The `godot` MCP server (`@coding-solo/godot-mcp`, configured in `.mcp.json`) can launch

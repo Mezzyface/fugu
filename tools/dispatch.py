@@ -184,6 +184,7 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
     outputs = _section(parsed, "output", "deliverable")
     verification = _section(parsed, "verification")
     is_deliverable = labels_cfg["deliverable"] in task.labels
+    is_ui = labels_cfg.get("ui", "ui") in task.labels
 
     lines = [
         f"# Task #{task.number}: {task.title}",
@@ -212,6 +213,16 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
     if is_deliverable:
         manifest_note += " This task is labelled `deliverable`, so a manifest update is **required**."
     lines += ["", manifest_note]
+    if is_ui:
+        lines += [
+            "",
+            "> **Visual task — screenshots required.** After implementing, capture each new or",
+            "> changed screen so the PR can be reviewed visually:",
+            f">   `bash tools/shoot.sh res://<scene>.tscn screenshots/{task.number}/<name>.png`",
+            "> (renders windowed; do NOT use `--headless`). Commit the PNG(s) under"
+            f" `screenshots/{task.number}/` — the dispatcher embeds them in the PR. Open each one"
+            " and confirm it actually shows the intended result before you finish.",
+        ]
     lines += [
         "",
         "## Verification commands",
@@ -262,12 +273,13 @@ def strip_title_prefix(title: str) -> str:
 
 
 def qa_issue_body(impl_task: "Task", parsed_impl: Dict[str, str],
-                  pr_url: str, pr_number: int) -> str:
+                  pr_url: str, pr_number: int, is_ui: bool = False) -> str:
     acceptance = _section(parsed_impl, "acceptance") or "_(none specified)_"
     verification = (_section(parsed_impl, "verification")
                     or "_(none specified — run tools/verify.sh)_")
     return "\n".join([
-        f"<!-- qa-meta pr={pr_number} branch={impl_task.branch} impl={impl_task.number} -->",
+        f"<!-- qa-meta pr={pr_number} branch={impl_task.branch} impl={impl_task.number}"
+        f" ui={'1' if is_ui else '0'} -->",
         "",
         f"Automated QA for #{impl_task.number} (PR {pr_url}). A verifier agent checks out the",
         "PR branch, runs the verification gate, and checks the acceptance criteria below, then",
@@ -296,7 +308,10 @@ def build_qa_md(task: "Task", meta: Dict[str, str], acceptance: str,
         "## Steps",
         "1. Run the verification gate. Prefer `bash tools/verify.sh`; if that file isn't on",
         "   this branch yet, run the import + GUT steps from CLAUDE.md directly.",
-        "2. Check every Acceptance Criteria item below against the actual code/behaviour.",
+        "2. Check every Acceptance Criteria item below against the actual code/behaviour."
+        + (" Re-render the affected screen(s) with `bash tools/shoot.sh res://<scene>.tscn"
+           f" screenshots/{impl}/qa-<name>.png` and compare against the screenshots committed"
+           " in the PR — they must match the intended result." if meta.get("ui") == "1" else ""),
         "3. Post your verdict as a PR **comment** (the bot and PR author are the same GitHub",
         "   account, so `--approve`/`--request-changes` are rejected — use `gh pr comment`):",
         f"   - PASS: `gh pr comment {pr} --repo {repo} --body \"✅ QA PASSED — <summary>\"`",
@@ -514,6 +529,28 @@ def remove_worktree(wt: Path) -> None:
     _run(["git", "worktree", "remove", "--force", str(wt)], cwd=ROOT)
 
 
+def screenshot_markdown(config: Config, task: Task, wt: Path) -> str:
+    """Embed any PNGs the agent left under screenshots/<issue>/ into the PR body.
+
+    Uses raw.githubusercontent URLs on the task branch so GitHub renders them inline.
+    """
+    shot_dir = wt / "screenshots" / str(task.number)
+    if not shot_dir.is_dir():
+        return ""
+    shots = sorted(shot_dir.glob("*.png"))
+    if not shots:
+        return ""
+    out = ["", "## Screenshots", ""]
+    for p in shots:
+        rel = f"screenshots/{task.number}/{p.name}"
+        url = f"https://raw.githubusercontent.com/{config.repo}/{task.branch}/{rel}"
+        out.append(f"**{p.stem}**")
+        out.append("")
+        out.append(f"![{p.stem}]({url})")
+        out.append("")
+    return "\n".join(out)
+
+
 def commit_push_pr(config: Config, task: Task, wt: Path, run_id: str) -> Optional[str]:
     """Commit, push, open PR. Returns the PR url, or None if nothing changed."""
     _run(["git", "add", "-A"], cwd=wt, check=True)
@@ -525,8 +562,9 @@ def commit_push_pr(config: Config, task: Task, wt: Path, run_id: str) -> Optiona
     _run(["git", "commit", "-m", msg], cwd=wt, check=True)
     _run(["git", "push", "-u", "origin", task.branch], cwd=wt, check=True)
     body = (f"Closes #{task.number}\n\nAutomated by the board dispatcher "
-            f"(run `{run_id}`). Please review.\n\n"
-            f"🤖 Generated with [Claude Code](https://claude.com/claude-code)")
+            f"(run `{run_id}`). Please review.\n"
+            f"{screenshot_markdown(config, task, wt)}\n"
+            f"\n🤖 Generated with [Claude Code](https://claude.com/claude-code)")
     # Run from the main repo, not the linked worktree: gh 2.93 fails with
     # "not a git repository: (NULL)" inside linked worktrees. The branch is
     # already pushed, so an explicit --head + --repo is sufficient here.
@@ -561,7 +599,8 @@ def create_qa_task(config: Config, state: dict, impl_task: Task,
         log("  [qa] could not parse PR number; skipping QA task")
         return
     title = f"[QA] Review #{impl_task.number}: {strip_title_prefix(impl_task.title)}"
-    body = qa_issue_body(impl_task, parsed_impl, pr_url, pr_number)
+    is_ui = config.labels.get("ui", "ui") in impl_task.labels
+    body = qa_issue_body(impl_task, parsed_impl, pr_url, pr_number, is_ui)
     code, out = _run([
         "gh", "issue", "create", "--repo", config.repo,
         "--title", title, "--body", body,
@@ -743,7 +782,8 @@ def _self_test() -> int:
     check("parse context", _section(parsed, "context", "goal"), "Build the thing.")
     check("parse verification", _section(parsed, "verification"), "gdlint game/")
 
-    labels = {"agent": "agent:claude", "human": "human", "deliverable": "deliverable", "qa": "qa"}
+    labels = {"agent": "agent:claude", "human": "human", "deliverable": "deliverable",
+              "qa": "qa", "ui": "ui"}
     sv = {"ready": "Ready", "in_progress": "In Progress", "in_review": "In Review",
           "needs_human": "Needs Human"}
     mk = lambda n, status, lbls, asg=[]: Task(
@@ -766,6 +806,18 @@ def _self_test() -> int:
     check("manifest note present (plain)", "deliverables/manifest.md" in md_plain, True)
     check("required wording for deliverable", "required" in md_deliv, True)
     check("no required wording for plain", "required" in md_plain, False)
+
+    # UI / screenshot logic
+    md_ui = build_task_md(mk(7, "Ready", ["agent:claude", "ui"]), parse_issue_body(""), labels)
+    check("ui task asks for screenshots", "tools/shoot.sh" in md_ui and "screenshots/7/" in md_ui, True)
+    check("plain task no screenshot ask", "tools/shoot.sh" in md_plain, False)
+    ub = qa_issue_body(mk(7, "Ready", ["agent:claude", "ui"]), parse_issue_body(""),
+                       "https://github.com/o/r/pull/20", 20, is_ui=True)
+    check("qa meta carries ui flag", "ui=1" in ub, True)
+    qmd_ui = build_qa_md(mk(7, "Ready", ["agent:claude", "qa"]),
+                         {"pr": "20", "impl": "7", "branch": "task/7-x", "ui": "1"},
+                         "- [ ] x", "", "o/r")
+    check("qa md adds visual compare for ui", "tools/shoot.sh" in qmd_ui, True)
 
     # QA (verifier) logic
     check("is_qa_task true", is_qa_task(mk(9, "Ready", ["agent:claude", "qa"]), labels), True)
