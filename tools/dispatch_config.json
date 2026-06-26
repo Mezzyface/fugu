@@ -21,7 +21,8 @@
     "agent": "agent:claude",
     "human": "human",
     "deliverable": "deliverable",
-    "qa": "qa"
+    "qa": "qa",
+    "ui": "ui"
   },
   "worktree_dir": ".dispatch-wt",
   "runs_dir": ".dispatch-runs"
