@@ -14,12 +14,14 @@
     "ready": "Ready",
     "in_progress": "In progress",
     "in_review": "In review",
-    "needs_human": "Needs Human"
+    "needs_human": "Needs Human",
+    "done": "Done"
   },
   "labels": {
     "agent": "agent:claude",
     "human": "human",
-    "deliverable": "deliverable"
+    "deliverable": "deliverable",
+    "qa": "qa"
   },
   "worktree_dir": ".dispatch-wt",
   "runs_dir": ".dispatch-runs"

@@ -227,6 +227,98 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
     return "\n".join(lines) + "\n"
 
 
+# ---- QA (verifier) tasks -----------------------------------------------------
+# A QA task is the "implementer != verifier" gate: when an implementation task
+# opens a PR, the dispatcher files a `qa`-labelled follow-up. The poller later
+# runs a FRESH agent that checks out the PR branch, runs the verification gate
+# and acceptance criteria, comments PASS/FAIL on the PR, and (on failure) files a
+# bug. QA tasks never spawn QA tasks (no recursion).
+QA_META_RE = re.compile(r"<!--\s*qa-meta\s+(.*?)\s*-->", re.S)
+
+
+def is_qa_task(task: "Task", labels_cfg: Dict[str, str]) -> bool:
+    return labels_cfg.get("qa", "qa") in task.labels
+
+
+def pr_number_from_url(url: str) -> Optional[int]:
+    m = re.search(r"/pull/(\d+)", url or "")
+    return int(m.group(1)) if m else None
+
+
+def parse_qa_meta(body: str) -> Dict[str, str]:
+    """Extract the `<!-- qa-meta k=v ... -->` block the dispatcher embeds."""
+    m = QA_META_RE.search(body or "")
+    meta: Dict[str, str] = {}
+    if m:
+        for kv in m.group(1).split():
+            if "=" in kv:
+                k, v = kv.split("=", 1)
+                meta[k] = v
+    return meta
+
+
+def strip_title_prefix(title: str) -> str:
+    return re.sub(r"^\[[^\]]+\]\s*", "", title).strip()
+
+
+def qa_issue_body(impl_task: "Task", parsed_impl: Dict[str, str],
+                  pr_url: str, pr_number: int) -> str:
+    acceptance = _section(parsed_impl, "acceptance") or "_(none specified)_"
+    verification = (_section(parsed_impl, "verification")
+                    or "_(none specified — run tools/verify.sh)_")
+    return "\n".join([
+        f"<!-- qa-meta pr={pr_number} branch={impl_task.branch} impl={impl_task.number} -->",
+        "",
+        f"Automated QA for #{impl_task.number} (PR {pr_url}). A verifier agent checks out the",
+        "PR branch, runs the verification gate, and checks the acceptance criteria below, then",
+        "comments **QA PASSED** / **QA FAILED** on the PR. On failure it files a linked bug.",
+        "",
+        "### Acceptance Criteria",
+        acceptance,
+        "",
+        "### Verification commands",
+        verification,
+    ]) + "\n"
+
+
+def build_qa_md(task: "Task", meta: Dict[str, str], acceptance: str,
+                verification: str, repo: str) -> str:
+    pr = meta.get("pr", "?")
+    impl = meta.get("impl", "?")
+    branch = meta.get("branch", "?")
+    return "\n".join([
+        f"# QA review of PR #{pr} (implements #{impl})",
+        "",
+        "You are a **verifier**, not the implementer. The proposed work is already checked",
+        f"out on branch `{branch}` (this worktree). Do NOT modify the implementation — only",
+        "inspect, run checks, and report.",
+        "",
+        "## Steps",
+        "1. Run the verification gate. Prefer `bash tools/verify.sh`; if that file isn't on",
+        "   this branch yet, run the import + GUT steps from CLAUDE.md directly.",
+        "2. Check every Acceptance Criteria item below against the actual code/behaviour.",
+        "3. Post your verdict as a PR **comment** (the bot and PR author are the same GitHub",
+        "   account, so `--approve`/`--request-changes` are rejected — use `gh pr comment`):",
+        f"   - PASS: `gh pr comment {pr} --repo {repo} --body \"✅ QA PASSED — <summary>\"`",
+        f"   - FAIL: `gh pr comment {pr} --repo {repo} --body \"❌ QA FAILED — <what failed>\"`",
+        "4. On FAIL, also file a linked bug:",
+        f"   `gh issue create --repo {repo} --label bug \\",
+        f"      --title \"[Bug] <short> (PR #{pr})\" \\",
+        f"      --body \"Found during QA of #{impl} / PR #{pr}. <details + repro steps>\"`",
+        "",
+        "## Acceptance Criteria",
+        acceptance or "_(none specified — infer from the PR diff + verify.sh)_",
+        "",
+        "## Task-specific verification commands",
+        verification or "_(none — rely on tools/verify.sh)_",
+        "",
+        "---",
+        "End your final message with exactly one sentinel on its own line:",
+        f"  {TASK_DONE}                       (QA passed; you posted ✅ on the PR)",
+        f"  {NEEDS_HUMAN} <one-line summary>  (QA failed; you posted ❌ and filed a bug)",
+    ]) + "\n"
+
+
 # ---- task model --------------------------------------------------------------
 @dataclass
 class Task:
@@ -335,7 +427,7 @@ mutation($project:ID!, $item:ID!, $field:ID!, $option:String!){
 """
 
 
-def set_status(config: Config, state: dict, task: Task, status_key: str) -> None:
+def _set_status_by_item(config: Config, state: dict, item_id: str, status_key: str) -> None:
     option_name = config.status_values[status_key]
     option_id = state.get("status_options", {}).get(option_name)
     if not option_id or "status_field_id" not in state:
@@ -347,12 +439,16 @@ def set_status(config: Config, state: dict, task: Task, status_key: str) -> None
         "gh", "api", "graphql",
         "-f", f"query={SET_STATUS_MUTATION}",
         "-f", f"project={state['project_id']}",
-        "-f", f"item={task.item_id}",
+        "-f", f"item={item_id}",
         "-f", f"field={state['status_field_id']}",
         "-f", f"option={option_id}",
     ])
     if code != 0:
         raise RuntimeError(f"set_status failed:\n{out}")
+
+
+def set_status(config: Config, state: dict, task: Task, status_key: str) -> None:
+    _set_status_by_item(config, state, task.item_id, status_key)
 
 
 def comment_issue(config: Config, number: int, body: str) -> None:
@@ -444,10 +540,102 @@ def commit_push_pr(config: Config, task: Task, wt: Path, run_id: str) -> Optiona
     return out.strip().splitlines()[-1] if out.strip() else None
 
 
+def create_qa_worktree(config: Config, branch: str, run_id: str, number: int) -> Path:
+    """Detached worktree at the PR head branch so QA inspects the proposed work."""
+    wt_root = ROOT / config.worktree_dir
+    wt_root.mkdir(parents=True, exist_ok=True)
+    wt = wt_root / f"qa-{number}-{run_id}"
+    _run(["git", "fetch", "origin", branch], cwd=ROOT, check=True)
+    _run(["git", "worktree", "add", "--detach", str(wt), "FETCH_HEAD"], cwd=ROOT, check=True)
+    return wt
+
+
+def create_qa_task(config: Config, state: dict, impl_task: Task,
+                   parsed_impl: Dict[str, str], pr_url: str,
+                   log: Callable[[str], None]) -> None:
+    """File a verifier QA task for a just-opened PR. Best-effort; never recurses."""
+    if is_qa_task(impl_task, config.labels):
+        return
+    pr_number = pr_number_from_url(pr_url)
+    if not pr_number:
+        log("  [qa] could not parse PR number; skipping QA task")
+        return
+    title = f"[QA] Review #{impl_task.number}: {strip_title_prefix(impl_task.title)}"
+    body = qa_issue_body(impl_task, parsed_impl, pr_url, pr_number)
+    code, out = _run([
+        "gh", "issue", "create", "--repo", config.repo,
+        "--title", title, "--body", body,
+        "--label", config.labels["agent"], "--label", config.labels.get("qa", "qa"),
+    ])
+    if code != 0:
+        log(f"  [qa] gh issue create failed:\n{out}")
+        return
+    qa_url = out.strip().splitlines()[-1]
+    code, out = _run(["gh", "project", "item-add", str(config.project_number),
+                      "--owner", config.owner, "--url", qa_url, "--format", "json"])
+    if code != 0:
+        log(f"  [qa] item-add failed:\n{out}")
+        return
+    try:
+        item_id = json.loads(out)["id"]
+    except (json.JSONDecodeError, KeyError):
+        log("  [qa] QA issue created but could not be added to the board")
+        return
+    _set_status_by_item(config, state, item_id, "ready")
+    log(f"  [qa] filed QA task: {qa_url}")
+
+
+def run_qa(config: Config, state: dict, task: Task, agent: Agent,
+           run_id: str, log: Callable[[str], None]) -> str:
+    """Execute a QA task: verify the PR branch, comment PASS/FAIL, close or escalate."""
+    meta = parse_qa_meta(task.body)
+    branch, pr = meta.get("branch"), meta.get("pr")
+    if not branch or not pr:
+        set_status(config, state, task, "needs_human")
+        comment_issue(config, task.number,
+                      "🚧 QA task is missing its `qa-meta` (branch/PR); needs a human.")
+        return "needs_human"
+    set_status(config, state, task, "in_progress")
+    comment_issue(config, task.number,
+                  f"🤖 QA started (run `{run_id}`): verifying PR #{pr} on `{branch}`.")
+    wt = create_qa_worktree(config, branch, run_id, task.number)
+    try:
+        parsed = parse_issue_body(task.body)
+        qa_md = build_qa_md(task, meta, _section(parsed, "acceptance"),
+                            _section(parsed, "verification"), config.repo)
+        (wt / ".dispatch").mkdir(exist_ok=True)
+        (wt / ".dispatch" / "TASK.md").write_text(qa_md)
+        prompt = ("You are performing QA. Follow .dispatch/TASK.md exactly "
+                  "(reproduced below). Follow CLAUDE.md.\n\n" + qa_md)
+        log_path = ROOT / config.runs_dir / f"qa-{task.number}-{run_id}.log"
+        rc, out = agent.run(wt, prompt, log_path)
+        verdict, message = classify_result(rc, out)
+        log(f"  qa verdict: {verdict} {('- ' + message) if message else ''}")
+        if verdict == "ok":
+            set_status(config, state, task, "done")
+            comment_issue(config, task.number, f"✅ QA passed for PR #{pr}; closing.")
+            _run(["gh", "issue", "close", str(task.number), "--repo", config.repo])
+            return "qa_passed"
+        set_status(config, state, task, "needs_human")
+        comment_issue(config, task.number,
+                      f"❌ QA flagged PR #{pr} ({verdict}): {message}\n\n"
+                      f"The verifier commented on the PR and (on failure) filed a bug. "
+                      f"Log: `{log_path.name}`")
+        return "qa_failed"
+    finally:
+        remove_worktree(wt)
+
+
 # ---- dispatch one task -------------------------------------------------------
 def dispatch_one(config: Config, state: dict, task: Task, agent: Agent, act: bool,
                  log: Callable[[str], None]) -> str:
     run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    if is_qa_task(task, config.labels):
+        log(f"[qa] #{task.number} '{task.title}' (run {run_id})")
+        if not act:
+            log("  [no-act] would: QA the PR branch, comment PASS/FAIL, close or Needs Human")
+            return "skipped"
+        return run_qa(config, state, task, agent, run_id, log)
     log(f"[dispatch] #{task.number} '{task.title}' -> branch {task.branch} (run {run_id})")
     if not act:
         log(f"  [no-act] would: set In Progress, worktree, run agent, PR, set In Review")
@@ -481,6 +669,10 @@ def dispatch_one(config: Config, state: dict, task: Task, agent: Agent, act: boo
                 return "no_changes"
             set_status(config, state, task, "in_review")
             comment_issue(config, task.number, f"✅ PR opened for review: {pr}")
+            try:
+                create_qa_task(config, state, task, parsed, pr, log)
+            except Exception as exc:
+                log(f"  [qa] could not create QA task: {exc}")
             return "in_review"
 
         set_status(config, state, task, "needs_human")
@@ -551,7 +743,7 @@ def _self_test() -> int:
     check("parse context", _section(parsed, "context", "goal"), "Build the thing.")
     check("parse verification", _section(parsed, "verification"), "gdlint game/")
 
-    labels = {"agent": "agent:claude", "human": "human", "deliverable": "deliverable"}
+    labels = {"agent": "agent:claude", "human": "human", "deliverable": "deliverable", "qa": "qa"}
     sv = {"ready": "Ready", "in_progress": "In Progress", "in_review": "In Review",
           "needs_human": "Needs Human"}
     mk = lambda n, status, lbls, asg=[]: Task(
@@ -574,6 +766,25 @@ def _self_test() -> int:
     check("manifest note present (plain)", "deliverables/manifest.md" in md_plain, True)
     check("required wording for deliverable", "required" in md_deliv, True)
     check("no required wording for plain", "required" in md_plain, False)
+
+    # QA (verifier) logic
+    check("is_qa_task true", is_qa_task(mk(9, "Ready", ["agent:claude", "qa"]), labels), True)
+    check("is_qa_task false", is_qa_task(mk(9, "Ready", ["agent:claude"]), labels), False)
+    check("pr_number_from_url", pr_number_from_url("https://github.com/o/r/pull/13"), 13)
+    check("pr_number_from_url none", pr_number_from_url("nope"), None)
+    qmeta = parse_qa_meta("text <!-- qa-meta pr=13 branch=task/8-x impl=8 --> more")
+    check("parse_qa_meta", (qmeta.get("pr"), qmeta.get("branch"), qmeta.get("impl")),
+          ("13", "task/8-x", "8"))
+    check("strip_title_prefix", strip_title_prefix("[Task] Do a thing"), "Do a thing")
+    qbody = qa_issue_body(mk(8, "Ready", ["agent:claude"]),
+                          parse_issue_body("### Acceptance Criteria\n\n- [ ] x\n"),
+                          "https://github.com/o/r/pull/13", 13)
+    check("qa body has meta", "qa-meta pr=13" in qbody and "impl=8" in qbody, True)
+    qmd = build_qa_md(mk(99, "Ready", ["agent:claude", "qa"]),
+                      {"pr": "13", "impl": "8", "branch": "task/8-x"},
+                      "- [ ] x", "bash tools/verify.sh", "o/r")
+    check("qa md uses gh pr comment", "gh pr comment 13" in qmd, True)
+    check("qa md frames verifier role", "verifier" in qmd, True)
 
     print("\nSELF-TEST:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
