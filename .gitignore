@@ -15,5 +15,7 @@ tools/dispatch_state.json
 game/.__shot.png
 game/.__shot.png.import
 
+# GIF frame capture temp (tools/gif.sh)
+game/.__cap/
 # Generated locally from deliverables/items/ (never commit — caused recurring merge conflicts)
 deliverables/manifest.md
