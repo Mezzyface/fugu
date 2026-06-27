@@ -74,6 +74,22 @@ that folder into the PR body automatically. Open each screenshot and confirm it 
 shows the intended result before finishing. Tasks labelled `ui` are reminded of this in
 their `TASK.md`, and QA re-renders and compares for `ui` tasks.
 
+### Animations → GIFs
+
+For anything that **moves** (sprite animations, transitions, particles), a static PNG isn't
+enough — capture an animated **GIF**:
+
+```bash
+bash tools/gif.sh res://<scene>.tscn screenshots/<issue#>/<name>.gif 24 20
+```
+
+`tools/gif.sh` records a short windowed frame sequence and assembles a looping GIF via
+`tools/gif.py` (stdlib only — no ffmpeg needed). The dispatcher embeds `.gif` files from
+`screenshots/<issue#>/` too, and they play inline in the PR. **The demo scene must actually
+animate** — e.g. an `AnimatedSprite2D` whose `SpriteFrames` is built from the spritesheet and
+is `.play()`-ing — or the GIF won't move. Run `godot --headless --import` (or `tools/verify.sh`)
+first so textures/fonts are imported before capturing.
+
 ## MCP tools
 
 The `godot` MCP server (`@coding-solo/godot-mcp`, configured in `.mcp.json`) can launch

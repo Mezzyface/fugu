@@ -238,6 +238,11 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
             "> (renders windowed; do NOT use `--headless`). Commit the PNG(s) under"
             f" `screenshots/{task.number}/` — the dispatcher embeds them in the PR. Open each one"
             " and confirm it actually shows the intended result before you finish.",
+            "> **If the change involves animation** (sprite animations, transitions, particles),"
+            " also capture a **GIF** so the motion can be reviewed — the demo scene must actually"
+            " play the animation (e.g. an `AnimatedSprite2D` calling `.play()`):",
+            f">   `bash tools/gif.sh res://<scene>.tscn screenshots/{task.number}/<name>.gif 24 20`",
+            "> Commit the `.gif` alongside the PNGs; the dispatcher embeds it (it plays in the PR).",
         ]
     lines += [
         "",
@@ -575,14 +580,13 @@ def remove_worktree(wt: Path) -> None:
 
 
 def screenshot_markdown(config: Config, task: Task, wt: Path) -> str:
-    """Embed any PNGs the agent left under screenshots/<issue>/ into the PR body.
-
-    Uses raw.githubusercontent URLs on the task branch so GitHub renders them inline.
-    """
+    """Embed any PNG screenshots and GIF animations the agent left under
+    screenshots/<issue>/ into the PR body (raw.githubusercontent URLs on the task
+    branch so GitHub renders them inline — animated GIFs play in the PR)."""
     shot_dir = wt / "screenshots" / str(task.number)
     if not shot_dir.is_dir():
         return ""
-    shots = sorted(shot_dir.glob("*.png"))
+    shots = sorted(shot_dir.glob("*.gif")) + sorted(shot_dir.glob("*.png"))
     if not shots:
         return ""
     out = ["", "## Screenshots", ""]
