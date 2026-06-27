@@ -1,0 +1,224 @@
+[gd_scene load_steps=29 format=3 uid="uid://b3ufxdemo26fx"]
+
+[ext_resource type="Texture2D" uid="uid://m7mrdl6ly06f" path="res://assets/fx/splat/splat00.png" id="1_splat0"]
+[ext_resource type="Texture2D" uid="uid://b43v7gga4jak3" path="res://assets/fx/splat/splat01.png" id="2_splat1"]
+[ext_resource type="Texture2D" uid="uid://xiloyklycq4n" path="res://assets/fx/splat/splat02.png" id="3_splat2"]
+[ext_resource type="Texture2D" uid="uid://2vdfexmyim3s" path="res://assets/fx/particles/circle_05.png" id="4_circle"]
+[ext_resource type="Texture2D" uid="uid://eid17iviqgw0" path="res://assets/fx/particles/flame_06.png" id="5_flame"]
+[ext_resource type="Texture2D" uid="uid://cbnebn4aat8xu" path="res://assets/fx/particles/spark_05.png" id="6_spark"]
+[ext_resource type="Texture2D" uid="uid://5byq1wdjlsmy" path="res://assets/fx/particles/magic_05.png" id="7_magic"]
+[ext_resource type="Texture2D" uid="uid://fsi875wu2kib" path="res://assets/fx/particles/star_07.png" id="8_star"]
+[ext_resource type="Texture2D" uid="uid://dnc8el4qccj4w" path="res://assets/fx/particles/smoke_07.png" id="9_smoke"]
+[ext_resource type="Texture2D" uid="uid://bmv21t43ftnch" path="res://assets/fx/light_masks/circle_a.png" id="10_lightc"]
+[ext_resource type="Texture2D" uid="uid://cfcma506pu6p7" path="res://assets/fx/light_masks/cone_a.png" id="11_lightcone"]
+[ext_resource type="Texture2D" uid="uid://b42mne52scv26" path="res://assets/fx/explosion/regularExplosion00.png" id="12_exp0"]
+[ext_resource type="Texture2D" uid="uid://cpna4okcm1g5" path="res://assets/fx/explosion/regularExplosion01.png" id="13_exp1"]
+[ext_resource type="Texture2D" uid="uid://blqks5fyvhlr8" path="res://assets/fx/explosion/regularExplosion02.png" id="14_exp2"]
+[ext_resource type="Texture2D" uid="uid://b88prr0yqj3co" path="res://assets/fx/explosion/regularExplosion03.png" id="15_exp3"]
+[ext_resource type="Texture2D" uid="uid://ybwxme2c2thg" path="res://assets/fx/explosion/regularExplosion04.png" id="16_exp4"]
+[ext_resource type="Texture2D" uid="uid://x38tbfkldv0o" path="res://assets/fx/explosion/regularExplosion05.png" id="17_exp5"]
+[ext_resource type="Texture2D" uid="uid://d0i3p3vqkjuov" path="res://assets/fx/explosion/regularExplosion06.png" id="18_exp6"]
+[ext_resource type="Texture2D" uid="uid://cj7h8gtfo6em4" path="res://assets/fx/explosion/regularExplosion07.png" id="19_exp7"]
+[ext_resource type="Texture2D" uid="uid://mogrjbreyuxk" path="res://assets/fx/explosion/regularExplosion08.png" id="20_exp8"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_add"]
+blend_mode = 1
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_exp"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("12_exp0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("13_exp1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("14_exp2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("15_exp3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("16_exp4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("17_exp5")
+}, {
+"duration": 1.0,
+"texture": ExtResource("18_exp6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("19_exp7")
+}, {
+"duration": 1.0,
+"texture": ExtResource("20_exp8")
+}],
+"loop": true,
+"name": &"explode",
+"speed": 14.0
+}]
+
+[node name="FxDemo" type="Node2D"]
+
+[node name="Background" type="ColorRect" parent="."]
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(0.117647, 0.137255, 0.160784, 1)
+
+[node name="Title" type="Label" parent="."]
+offset_left = 0.0
+offset_top = 24.0
+offset_right = 1280.0
+offset_bottom = 64.0
+horizontal_alignment = 1
+text = "FX Starter Set (Kenney, CC0) — splats · particles · explosion · light masks"
+
+[node name="SplatLabel" type="Label" parent="."]
+offset_left = 40.0
+offset_top = 96.0
+offset_right = 600.0
+offset_bottom = 124.0
+text = "Splats (palette-tinted)"
+
+[node name="Splat0" type="Sprite2D" parent="."]
+texture_filter = 1
+position = Vector2(150, 250)
+scale = Vector2(0.7, 0.7)
+self_modulate = Color(0.854902, 0.321569, 0.364706, 1)
+texture = ExtResource("1_splat0")
+
+[node name="Splat1" type="Sprite2D" parent="."]
+texture_filter = 1
+position = Vector2(330, 250)
+scale = Vector2(0.7, 0.7)
+self_modulate = Color(0.588235, 0.819608, 0.666667, 1)
+texture = ExtResource("2_splat1")
+
+[node name="Splat2" type="Sprite2D" parent="."]
+texture_filter = 1
+position = Vector2(510, 250)
+scale = Vector2(0.7, 0.7)
+self_modulate = Color(0.725490, 0.517647, 0.686275, 1)
+texture = ExtResource("3_splat2")
+
+[node name="ParticlesLabel" type="Label" parent="."]
+offset_left = 700.0
+offset_top = 96.0
+offset_right = 1240.0
+offset_bottom = 124.0
+text = "Particles (additive glow)"
+
+[node name="Circle" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(760, 230)
+scale = Vector2(0.35, 0.35)
+self_modulate = Color(0.588235, 0.819608, 0.666667, 1)
+texture = ExtResource("4_circle")
+
+[node name="Flame" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(880, 230)
+scale = Vector2(0.35, 0.35)
+self_modulate = Color(0.854902, 0.321569, 0.364706, 1)
+texture = ExtResource("5_flame")
+
+[node name="Spark" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(1000, 230)
+scale = Vector2(0.35, 0.35)
+self_modulate = Color(0.772549, 0.623529, 0.419608, 1)
+texture = ExtResource("6_spark")
+
+[node name="Magic" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(1120, 230)
+scale = Vector2(0.35, 0.35)
+self_modulate = Color(0.725490, 0.517647, 0.686275, 1)
+texture = ExtResource("7_magic")
+
+[node name="Star" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(820, 330)
+scale = Vector2(0.35, 0.35)
+self_modulate = Color(0.972549, 0.952941, 0.690196, 1)
+texture = ExtResource("8_star")
+
+[node name="Smoke" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(1060, 330)
+scale = Vector2(0.35, 0.35)
+self_modulate = Color(0.760784, 0.760784, 0.780392, 1)
+texture = ExtResource("9_smoke")
+
+[node name="ExplosionLabel" type="Label" parent="."]
+offset_left = 40.0
+offset_top = 430.0
+offset_right = 700.0
+offset_bottom = 458.0
+text = "Explosion — AnimatedSprite2D (9 frames, autoplay) + filmstrip"
+
+[node name="Explosion" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+position = Vector2(150, 560)
+scale = Vector2(1.4, 1.4)
+sprite_frames = SubResource("SpriteFrames_exp")
+animation = &"explode"
+autoplay = "explode"
+
+[node name="Filmstrip" type="Node2D" parent="."]
+position = Vector2(320, 560)
+
+[node name="F0" type="Sprite2D" parent="Filmstrip"]
+texture_filter = 1
+position = Vector2(0, 0)
+texture = ExtResource("12_exp0")
+
+[node name="F2" type="Sprite2D" parent="Filmstrip"]
+texture_filter = 1
+position = Vector2(150, 0)
+texture = ExtResource("14_exp2")
+
+[node name="F4" type="Sprite2D" parent="Filmstrip"]
+texture_filter = 1
+position = Vector2(300, 0)
+texture = ExtResource("16_exp4")
+
+[node name="F6" type="Sprite2D" parent="Filmstrip"]
+texture_filter = 1
+position = Vector2(450, 0)
+texture = ExtResource("18_exp6")
+
+[node name="F8" type="Sprite2D" parent="Filmstrip"]
+texture_filter = 1
+position = Vector2(600, 0)
+texture = ExtResource("20_exp8")
+
+[node name="LightLabel" type="Label" parent="."]
+offset_left = 760.0
+offset_top = 430.0
+offset_right = 1240.0
+offset_bottom = 458.0
+text = "Light masks (additive glow)"
+
+[node name="LightCircle" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(880, 580)
+scale = Vector2(0.45, 0.45)
+self_modulate = Color(0.972549, 0.952941, 0.690196, 1)
+texture = ExtResource("10_lightc")
+
+[node name="LightCone" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_add")
+texture_filter = 1
+position = Vector2(1100, 580)
+scale = Vector2(0.45, 0.45)
+self_modulate = Color(0.588235, 0.819608, 0.666667, 1)
+texture = ExtResource("11_lightcone")
