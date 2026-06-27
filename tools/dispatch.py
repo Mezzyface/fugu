@@ -700,11 +700,18 @@ def run_qa(config: Config, state: dict, task: Task, agent: Agent,
         verdict, message = classify_result(rc, out)
         log(f"  qa verdict: {verdict} {('- ' + message) if message else ''}")
         if verdict == "ok":
+            # Tag the PR itself so the human sees "this one's cleared, merge it" — the
+            # signal belongs on the PR being reviewed, not just on the QA task.
+            label = config.labels.get("ready_to_merge", "ready-to-merge")
+            _run(["gh", "pr", "edit", str(pr), "--repo", config.repo, "--add-label", label])
             set_status(config, state, task, "done")
-            comment_issue(config, task.number, f"✅ QA passed for PR #{pr}; closing.")
+            comment_issue(config, task.number,
+                          f"✅ QA passed; labelled PR #{pr} `{label}` — ready for you to merge. Closing QA.")
             _run(["gh", "issue", "close", str(task.number), "--repo", config.repo])
             return "qa_passed"
         set_status(config, state, task, "needs_human")
+        _run(["gh", "pr", "edit", str(pr), "--repo", config.repo,
+              "--remove-label", config.labels.get("ready_to_merge", "ready-to-merge")])
         comment_issue(config, task.number,
                       f"❌ QA flagged PR #{pr} ({verdict}): {message}\n\n"
                       f"The verifier commented on the PR and (on failure) filed a bug. "
@@ -801,6 +808,9 @@ def run_rework(config: Config, state: dict, task: Task, agent: Agent,
             if code != 0:
                 raise RuntimeError(f"rework push failed:\n{out}")
             set_status(config, state, task, "done")
+            # The PR changed, so it's no longer "ready to merge" until QA re-passes.
+            _run(["gh", "pr", "edit", str(pr), "--repo", config.repo,
+                  "--remove-label", config.labels.get("ready_to_merge", "ready-to-merge")])
             comment_pr(config, pr, f"🔧 Revised per the rework request (run `{run_id}`); please re-review.")
             comment_issue(config, task.number, f"✅ Pushed revisions to PR #{pr}; closing rework.")
             _run(["gh", "issue", "close", str(task.number), "--repo", config.repo])
