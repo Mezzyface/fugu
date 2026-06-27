@@ -1,0 +1,12 @@
+Asset pack: Tiny Swords (Free Pack)
+Author: Pixel Frog
+Source: https://pixelfrog-assets.itch.io/tiny-swords
+License: Creative Commons Zero (CC0) — free for personal and commercial use,
+         no attribution required (attribution given here voluntarily).
+
+Used in this project (imported #23):
+  game/assets/units/  — Blue team unit sprites (Idle + Run spritesheets) for
+                        Pawn, Warrior, Lancer, Archer, Monk.
+
+Only a curated subset of the pack is committed. The raw pack lives outside the
+repo under Game-Assets/ and is never committed.
