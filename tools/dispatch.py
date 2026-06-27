@@ -222,9 +222,10 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
         f" `deliverables/items/{task.number}-<slug>.md` with frontmatter"
         f" (`section:` — one of `Foundation / tooling` / `Game (Godot)` / `Design`;"
         f" `issue: {task.number}`; `checked: true`) then a one-line description with the"
-        f" in-repo paths/links and `(#{task.number})`. Do NOT edit"
-        f" `deliverables/manifest.md` — it's generated from those files (so parallel tasks"
-        f" never conflict)."
+        f" in-repo paths/links and `(#{task.number})`. **Only add that one item file.**"
+        f" Do NOT run `tools/build_manifest.py` and do NOT add/commit"
+        f" `deliverables/manifest.md` — it is gitignored and generated locally; committing it"
+        f" reintroduces the merge conflicts this design removed."
     )
     if is_deliverable:
         manifest_note += " This task is labelled `deliverable`, so the item file is **required**."
