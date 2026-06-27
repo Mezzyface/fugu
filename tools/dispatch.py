@@ -140,10 +140,16 @@ def select_ready(
     status_values: Dict[str, str],
     labels_cfg: Dict[str, str],
 ) -> List["Task"]:
-    """Oldest-first agent tasks in `Ready`, capped by remaining concurrency."""
+    """Ready agent tasks, capped by remaining concurrency.
+
+    QA review tasks are picked before implementation tasks (then oldest-first within
+    each group), so each PR gets reviewed before the dispatcher starts new work — reviews
+    keep pace instead of piling up behind a backlog of implementations.
+    """
     slots = max(0, max_concurrency - in_progress)
     if slots <= 0:
         return []
+    qa_label = labels_cfg.get("qa", "qa")
     ready = [
         t
         for t in tasks
@@ -151,7 +157,7 @@ def select_ready(
         and t.status == status_values["ready"]
         and is_agent_task(t, labels_cfg)
     ]
-    ready.sort(key=lambda t: t.number)
+    ready.sort(key=lambda t: (qa_label not in t.labels, t.number))
     return ready[:slots]
 
 
@@ -985,6 +991,12 @@ def _self_test() -> int:
     check("select picks agent-ready", [t.number for t in sel], [1, 5])
     sel0 = select_ready(tasks, in_progress=2, max_concurrency=2, status_values=sv, labels_cfg=labels)
     check("select respects concurrency", sel0, [])
+    # QA tasks are picked before implementation tasks, even with higher numbers
+    qa_pri = [mk(1, "Ready", ["agent:claude"]), mk(99, "Ready", ["agent:claude", "qa"])]
+    check("qa prioritized over impl",
+          [t.number for t in select_ready(qa_pri, 0, 1, sv, labels)], [99])
+    check("qa-first ordering full",
+          [t.number for t in select_ready(qa_pri, 0, 5, sv, labels)], [99, 1])
 
     # reconcile: closed issues not yet Done
     rec_tasks = [
