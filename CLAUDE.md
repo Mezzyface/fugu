@@ -92,8 +92,21 @@ guessing — it's the fastest way to verify Godot behavior.
 ## Deliverables
 
 If your task's outputs include anything tracked as a deliverable (a design doc, an asset
-import, an external artifact, a decision), update `deliverables/manifest.md` in the same
-PR: check the item off and link the in-repo path or external URL plus the issue number.
+import, an external artifact, a decision), add a **per-task file** in the same PR:
+`deliverables/items/<issue>-<slug>.md` with frontmatter and a one-line description:
+
+```markdown
+---
+section: Game (Godot)   # or "Foundation / tooling" / "Design"
+issue: 42
+checked: true
+---
+Short name — type — `in/repo/path` (extra notes) (#42)
+```
+
+**Do NOT edit `deliverables/manifest.md`** — it's generated from the item files by
+`python3 tools/build_manifest.py`. One file per task means parallel PRs never conflict on
+a shared manifest.
 
 ## Commits & PRs
 
