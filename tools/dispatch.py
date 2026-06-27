@@ -159,6 +159,12 @@ def count_in_progress(tasks: List["Task"], status_values: Dict[str, str]) -> int
     return sum(1 for t in tasks if t.status == status_values["in_progress"])
 
 
+def closed_to_reconcile(tasks: List["Task"], done_status: str) -> List["Task"]:
+    """Closed issues whose Status isn't Done yet (GitHub closes the issue on PR merge
+    but doesn't move the Project's Status field). Excludes items with no status set."""
+    return [t for t in tasks if t.state == "CLOSED" and t.status and t.status != done_status]
+
+
 def classify_result(returncode: int, output: str, tail_lines: int = 25) -> Tuple[str, str]:
     """Map an agent run to ('ok'|'needs_human'|'error', message).
 
@@ -470,6 +476,35 @@ def comment_issue(config: Config, number: int, body: str) -> None:
     _run(["gh", "issue", "comment", str(number), "--repo", config.repo, "--body", body])
 
 
+def pr_review_state(config: Config, pr: str) -> str:
+    """OPEN / MERGED / CLOSED for a PR (empty string if it can't be read)."""
+    code, out = _run(["gh", "pr", "view", str(pr), "--repo", config.repo, "--json", "state"])
+    if code != 0:
+        return ""
+    try:
+        return json.loads(out).get("state", "")
+    except json.JSONDecodeError:
+        return ""
+
+
+def reconcile_closed(config: Config, state: dict, tasks: List["Task"],
+                     log: Callable[[str], None]) -> int:
+    """Move closed issues that aren't Done yet -> Done (a PR merge closes the issue
+    but leaves the board's Status field untouched). Safety net for the GitHub
+    'item closed -> Done' workflow."""
+    done_name = config.status_values.get("done")
+    if not done_name:
+        return 0
+    stale = closed_to_reconcile(tasks, done_name)
+    for t in stale:
+        try:
+            set_status(config, state, t, "done")
+            log(f"  [reconcile] #{t.number} closed -> Done (was {t.status or 'no status'})")
+        except Exception as exc:
+            log(f"  [reconcile] #{t.number} failed: {exc}")
+    return len(stale)
+
+
 # ---- agent abstraction -------------------------------------------------------
 class Agent:
     def run(self, workdir: Path, prompt: str, log_path: Path) -> Tuple[int, str]:
@@ -634,6 +669,14 @@ def run_qa(config: Config, state: dict, task: Task, agent: Agent,
         comment_issue(config, task.number,
                       "🚧 QA task is missing its `qa-meta` (branch/PR); needs a human.")
         return "needs_human"
+    # If the human already merged/closed the PR, QA is moot (and the branch may be
+    # gone). Close the QA task cleanly instead of failing to fetch a dead branch.
+    if pr_review_state(config, pr) in ("MERGED", "CLOSED"):
+        set_status(config, state, task, "done")
+        comment_issue(config, task.number,
+                      f"ℹ️ PR #{pr} is already resolved; QA is moot. Closing.")
+        _run(["gh", "issue", "close", str(task.number), "--repo", config.repo])
+        return "qa_moot"
     set_status(config, state, task, "in_progress")
     comment_issue(config, task.number,
                   f"🤖 QA started (run `{run_id}`): verifying PR #{pr} on `{branch}`.")
@@ -730,13 +773,17 @@ def poll_once(config: Config, state: dict, agent: Agent, act: bool,
               log: Callable[[str], None]) -> List[str]:
     tasks = fetch_board(config, state)
     save_state(DEFAULT_STATE, state)
+    if act:
+        reconciled = reconcile_closed(config, state, tasks, log)
+    else:
+        reconciled = len(closed_to_reconcile(tasks, config.status_values.get("done", "Done")))
     in_progress = count_in_progress(tasks, config.status_values)
     selected = select_ready(tasks, in_progress, config.max_concurrency,
                             config.status_values, config.labels)
     human = [t for t in tasks if config.labels["human"] in t.labels
              and t.status == config.status_values["ready"]]
     log(f"[poll] {len(tasks)} items | {in_progress} in-progress | "
-        f"{len(selected)} selected | {len(human)} human-ready")
+        f"{len(selected)} selected | {len(human)} human-ready | {reconciled} closed→Done")
     for t in human:
         log(f"  [human] #{t.number} '{t.title}' awaits you (not executed)")
     results = []
@@ -800,6 +847,15 @@ def _self_test() -> int:
     check("select picks agent-ready", [t.number for t in sel], [1, 5])
     sel0 = select_ready(tasks, in_progress=2, max_concurrency=2, status_values=sv, labels_cfg=labels)
     check("select respects concurrency", sel0, [])
+
+    # reconcile: closed issues not yet Done
+    rec_tasks = [
+        Task("a", 10, "t", "", "", "CLOSED", "In review", [], []),   # stuck -> reconcile
+        Task("b", 11, "t", "", "", "CLOSED", "Done", [], []),        # already Done -> skip
+        Task("c", 12, "t", "", "", "OPEN", "In review", [], []),     # open -> skip
+        Task("d", 13, "t", "", "", "CLOSED", "", [], []),            # no status -> skip
+    ]
+    check("closed_to_reconcile", [t.number for t in closed_to_reconcile(rec_tasks, "Done")], [10])
     md_deliv = build_task_md(tasks[4], parse_issue_body(""), labels)   # deliverable-labelled
     md_plain = build_task_md(tasks[0], parse_issue_body(""), labels)   # not labelled
     check("manifest note present (deliverable)", "deliverables/manifest.md" in md_deliv, True)
