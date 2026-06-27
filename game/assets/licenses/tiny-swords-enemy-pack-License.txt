@@ -1,0 +1,17 @@
+Asset pack: Tiny Swords — Enemy Pack
+Author: Pixel Frog
+Source: https://pixelfrog-assets.itch.io/tiny-swords
+
+License: The Enemy Pack ships without a bundled license file. It is part of
+         Pixel Frog's "Tiny Swords" line; the base "Tiny Swords (Free Pack)" is
+         released under Creative Commons Zero (CC0). Confirm the exact terms for
+         the Enemy Pack on the itch.io page above before any commercial release.
+         Attribution is given here voluntarily either way.
+
+Used in this project (imported #24):
+  game/assets/enemies/  — curated enemy Idle spritesheets + avatar portraits for
+                          Spear Goblin, Torch Goblin, Hex Shaman (Goblin Raiders)
+                          and Harpoon Shark, Bomb Fish (Pirate Fish).
+
+Only a curated subset of the pack is committed. The raw pack lives outside the
+repo under Game-Assets/ and is never committed.
