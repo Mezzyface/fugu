@@ -22,7 +22,8 @@
     "human": "human",
     "deliverable": "deliverable",
     "qa": "qa",
-    "ui": "ui"
+    "ui": "ui",
+    "rework": "rework"
   },
   "worktree_dir": ".dispatch-wt",
   "runs_dir": ".dispatch-runs"
