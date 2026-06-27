@@ -217,13 +217,17 @@ def build_task_md(task: "Task", parsed: Dict[str, str], labels_cfg: Dict[str, st
         outputs or "_(none provided)_",
     ]
     manifest_note = (
-        "> **Keep `deliverables/manifest.md` current.** If this task creates or completes any"
-        " tracked deliverable (code, doc, or external artifact), update that file in your"
-        f" changes: tick the item off (or add a line) and link the in-repo path or external"
-        f" URL plus this issue number (#{task.number})."
+        f"> **Record your deliverable as its own file.** If this task produces a tracked"
+        f" deliverable (code, doc, or external artifact), add"
+        f" `deliverables/items/{task.number}-<slug>.md` with frontmatter"
+        f" (`section:` — one of `Foundation / tooling` / `Game (Godot)` / `Design`;"
+        f" `issue: {task.number}`; `checked: true`) then a one-line description with the"
+        f" in-repo paths/links and `(#{task.number})`. Do NOT edit"
+        f" `deliverables/manifest.md` — it's generated from those files (so parallel tasks"
+        f" never conflict)."
     )
     if is_deliverable:
-        manifest_note += " This task is labelled `deliverable`, so a manifest update is **required**."
+        manifest_note += " This task is labelled `deliverable`, so the item file is **required**."
     lines += ["", manifest_note]
     if is_ui:
         lines += [
