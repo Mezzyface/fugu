@@ -104,9 +104,10 @@ checked: true
 Short name — type — `in/repo/path` (extra notes) (#42)
 ```
 
-**Do NOT edit `deliverables/manifest.md`** — it's generated from the item files by
-`python3 tools/build_manifest.py`. One file per task means parallel PRs never conflict on
-a shared manifest.
+**Only add that one item file.** `deliverables/manifest.md` is **gitignored** and generated
+locally (`python3 tools/build_manifest.py` rebuilds it for viewing) — never run the generator
+in a task and never add/commit the manifest. The per-task `items/` files are the committed
+record; keeping the manifest out of git is what stops parallel PRs from conflicting.
 
 ## Commits & PRs
 

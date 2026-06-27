@@ -14,3 +14,6 @@ tools/dispatch_state.json
 # Screenshot capture temp (tools/shoot.sh)
 game/.__shot.png
 game/.__shot.png.import
+
+# Generated locally from deliverables/items/ (never commit — caused recurring merge conflicts)
+deliverables/manifest.md
