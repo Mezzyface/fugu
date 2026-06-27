@@ -23,7 +23,8 @@
     "deliverable": "deliverable",
     "qa": "qa",
     "ui": "ui",
-    "rework": "rework"
+    "rework": "rework",
+    "ready_to_merge": "ready-to-merge"
   },
   "worktree_dir": ".dispatch-wt",
   "runs_dir": ".dispatch-runs"

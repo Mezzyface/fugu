@@ -1,0 +1,21 @@
+[gd_resource type="Theme" load_steps=3 format=3 uid="uid://bfugutheme0001"]
+
+[ext_resource type="FontFile" uid="uid://yfrg4cm4ls0o" path="res://assets/ui/fonts/honeyblot_caps.ttf" id="1_title"]
+[ext_resource type="FontFile" uid="uid://dsleynor6qpyl" path="res://assets/ui/fonts/HoneyPigeon.ttf" id="2_body"]
+
+[resource]
+default_font = ExtResource("2_body")
+default_font_size = 22
+Label/colors/font_color = Color(0.14118, 0.16078, 0.23922, 1)
+HeaderLabel/base_type = &"Label"
+HeaderLabel/colors/font_color = Color(0.14118, 0.16078, 0.23922, 1)
+HeaderLabel/fonts/font = ExtResource("1_title")
+HeaderLabel/font_sizes/font_size = 28
+TitleLabel/base_type = &"Label"
+TitleLabel/colors/font_color = Color(0.14118, 0.16078, 0.23922, 1)
+TitleLabel/fonts/font = ExtResource("1_title")
+TitleLabel/font_sizes/font_size = 44
+Palette/colors/cobalt_green = Color(0.588235, 0.819608, 0.666667, 1)
+Palette/colors/eugenia_red = Color(0.854902, 0.321569, 0.364706, 1)
+Palette/colors/lilac = Color(0.72549, 0.517647, 0.686275, 1)
+Palette/colors/maple = Color(0.772549, 0.623529, 0.419608, 1)
