@@ -1,10 +1,11 @@
 class_name FrozenEcho
 extends RefCounted
-## A frozen inheritance echo distilled from a training run.
+## Immutable snapshot of a trained character, used as an inheritance "parent".
 ##
 ## Ported 1:1 from the Python prototype's frozen `FrozenEcho` dataclass
-## (`prototype/game.py`). `stats` maps a stat key (e.g. `"hp"`) to a [BigStat].
-## Instances are treated as immutable — fields are set once at construction.
+## (`prototype/game.py`). `stats` maps a stat key (e.g. `"atk"`) to a [BigStat];
+## `lineage_depth` records how many inheritance generations deep this echo is and
+## `instability` the accumulated cost of that inherited power.
 
 var source_character_id: String
 var stats: Dictionary
