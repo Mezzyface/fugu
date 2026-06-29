@@ -20,8 +20,8 @@ func _init(
 	p_stats: Dictionary,
 	p_skills: PackedStringArray,
 	p_traits: PackedStringArray,
-	p_lineage_depth: int,
-	p_instability: int
+	p_lineage_depth: int = 0,
+	p_instability: int = 0
 ) -> void:
 	source_character_id = p_source_character_id
 	stats = p_stats
