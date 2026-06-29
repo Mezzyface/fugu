@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://d60runresultsscene"]
 
-[ext_resource type="Script" path="res://scripts/ui/screen_base.gd" id="1_screen"]
+[ext_resource type="Script" path="res://scripts/ui/run_results.gd" id="1_results"]
+[ext_resource type="Theme" uid="uid://bfugutheme0001" path="res://assets/theme/fugu_theme.tres" id="2_theme"]
 
 [node name="RunResults" type="Control"]
 layout_mode = 3
@@ -9,6 +10,176 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_screen")
+theme = ExtResource("2_theme")
+script = ExtResource("1_results")
 screen_id = "run_results"
 screen_title = "Run Results"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.094118, 0.105882, 0.141176, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 42
+theme_override_constants/margin_bottom = 24
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="Margin/Root"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.854902, 0.321569, 0.364706, 1)
+text = "Run Results"
+
+[node name="OutcomeLabel" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+text = "VICTORY"
+
+[node name="SummaryLabel" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Astra, Iron Vow · cleared 12 / 12 floors · always-echo frozen"
+
+[node name="Body" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="EchoPanel" type="PanelContainer" parent="Margin/Root/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="EchoMargin" type="MarginContainer" parent="Margin/Root/Body/EchoPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="EchoStack" type="VBoxContainer" parent="Margin/Root/Body/EchoPanel/EchoMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="EchoHeader" type="Label" parent="Margin/Root/Body/EchoPanel/EchoMargin/EchoStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Frozen Echo"
+
+[node name="StatsGrid" type="GridContainer" parent="Margin/Root/Body/EchoPanel/EchoMargin/EchoStack"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="SkillsLabel" type="Label" parent="Margin/Root/Body/EchoPanel/EchoMargin/EchoStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+autowrap_mode = 3
+text = "Skills: —"
+
+[node name="TraitsLabel" type="Label" parent="Margin/Root/Body/EchoPanel/EchoMargin/EchoStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+autowrap_mode = 3
+text = "Traits: —"
+
+[node name="LineageLabel" type="Label" parent="Margin/Root/Body/EchoPanel/EchoMargin/EchoStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.623529, 0.419608, 1)
+text = "Lineage depth 0 · instability ⚠ 0"
+
+[node name="RewardPanel" type="PanelContainer" parent="Margin/Root/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RewardMargin" type="MarginContainer" parent="Margin/Root/Body/RewardPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="RewardStack" type="VBoxContainer" parent="Margin/Root/Body/RewardPanel/RewardMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RewardHeader" type="Label" parent="Margin/Root/Body/RewardPanel/RewardMargin/RewardStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Rewards"
+
+[node name="RewardsLabel" type="Label" parent="Margin/Root/Body/RewardPanel/RewardMargin/RewardStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.623529, 0.419608, 1)
+autowrap_mode = 3
+text = "+105◆ banked shards · +6⬡ relic rolls · echo quality 220% · +0◆ instability dividend"
+
+[node name="ActionHeader" type="Label" parent="Margin/Root/Body/RewardPanel/RewardMargin/RewardStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Actions"
+
+[node name="ActionCopy" type="Label" parent="Margin/Root/Body/RewardPanel/RewardMargin/RewardStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+autowrap_mode = 3
+text = "Bank Echo stores this always-echo parent in EchoPool. Forge Relics spends earned ⬡ in Screen 09."
+
+[node name="MessageLabel" type="Label" parent="Margin/Root/Body/RewardPanel/RewardMargin/RewardStack"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+autowrap_mode = 3
+text = ""
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="BankButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Bank Echo"
+
+[node name="ForgeButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Forge Relics"
+
+[node name="HubButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back to Hub"
