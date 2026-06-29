@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=6 format=3 uid="uid://d59runprogressscene"]
 
-[ext_resource type="Script" path="res://scripts/ui/screen_base.gd" id="1_screen"]
+[ext_resource type="Script" path="res://scripts/ui/run_progress.gd" id="1_progress"]
+[ext_resource type="Theme" uid="uid://bfugutheme0001" path="res://assets/theme/fugu_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/units/warrior/Warrior_Idle.png" id="3_unit"]
+[ext_resource type="Texture2D" path="res://assets/enemies/torch_goblin/TorchGoblin_Idle.png" id="4_enemy"]
+[ext_resource type="Texture2D" path="res://assets/terrain/floor_N.png" id="5_floor"]
 
 [node name="RunProgress" type="Control"]
 layout_mode = 3
@@ -9,6 +13,192 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_screen")
+theme = ExtResource("2_theme")
+script = ExtResource("1_progress")
 screen_id = "run_progress"
 screen_title = "Run In Progress"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.094118, 0.105882, 0.141176, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="Margin/Root"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.854902, 0.321569, 0.364706, 1)
+text = "Run In Progress"
+
+[node name="SummaryLabel" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Astra, Iron Vow · Balanced route · floor 12 / 12"
+
+[node name="Body" type="VBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="MapPanel" type="PanelContainer" parent="Margin/Root/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MapMargin" type="MarginContainer" parent="Margin/Root/Body/MapPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="MapStack" type="VBoxContainer" parent="Margin/Root/Body/MapPanel/MapMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MapHeader" type="Label" parent="Margin/Root/Body/MapPanel/MapMargin/MapStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "12-floor route map"
+
+[node name="ArtStrip" type="HBoxContainer" parent="Margin/Root/Body/MapPanel/MapMargin/MapStack"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="UnitSprite" type="TextureRect" parent="Margin/Root/Body/MapPanel/MapMargin/MapStack/ArtStrip"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+texture = ExtResource("3_unit")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="TerrainSprite" type="TextureRect" parent="Margin/Root/Body/MapPanel/MapMargin/MapStack/ArtStrip"]
+custom_minimum_size = Vector2(96, 64)
+layout_mode = 2
+texture = ExtResource("5_floor")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="EnemySprite" type="TextureRect" parent="Margin/Root/Body/MapPanel/MapMargin/MapStack/ArtStrip"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+texture = ExtResource("4_enemy")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="FloorGrid" type="GridContainer" parent="Margin/Root/Body/MapPanel/MapMargin/MapStack"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 4
+
+[node name="DetailPanel" type="PanelContainer" parent="Margin/Root/Body"]
+custom_minimum_size = Vector2(0, 145)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+
+[node name="DetailMargin" type="MarginContainer" parent="Margin/Root/Body/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="DetailStack" type="HBoxContainer" parent="Margin/Root/Body/DetailPanel/DetailMargin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="EncounterStack" type="VBoxContainer" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="EncounterTitle" type="Label" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack/EncounterStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+text = "Floor 1 · COMBAT"
+
+[node name="EncounterDetail" type="Label" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack/EncounterStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+autowrap_mode = 3
+text = "power 1175 vs difficulty 185 · cleared"
+
+[node name="CheckpointLabel" type="Label" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack/EncounterStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.623529, 0.419608, 1)
+autowrap_mode = 3
+text = "Boss checkpoints: F4 / F8 / F12."
+
+[node name="LogStack" type="VBoxContainer" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="LogHeader" type="Label" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack/LogStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Run log"
+
+[node name="LogLabel" type="Label" parent="Margin/Root/Body/DetailPanel/DetailMargin/DetailStack/LogStack"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+autowrap_mode = 3
+text = "boss gate 4 cleared"
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="PrevButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Previous Floor"
+
+[node name="NextButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Next Floor"
+
+[node name="ResultsButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Run Results"
+
+[node name="HubButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back to Hub"
