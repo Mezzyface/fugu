@@ -168,6 +168,12 @@ Provided project assets support a 2D fantasy prototype without needing new art f
 - Cozy tactical map presentation contrasted with absurd number scaling.
 - Gacha screens should feel archival/permanent rather than urgent or FOMO-driven.
 
+## Godot Architecture Notes
+- Runtime state lives in the `GameSession` autoload (`game/scripts/game_session.gd`): currencies, current week, banner progress, `GachaSystem`, and the live `EchoPool`.
+- `game/main.tscn` is the navigation root. It swaps the ten wireframe screens by stable screen id and every screen can return to `home_hub`.
+- Shared screen contract lives in `game/scripts/ui/screen_base.gd`; individual screens build on it under `game/scenes/<screen>.tscn`.
+- Core prototype math has been ported to typed GDScript under `game/scripts/core/` and `game/scripts/training/`, with GUT coverage under `game/test/`.
+
 ## Prototype Scope
 The prototype implements:
 - Static character definitions.
