@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://d61echopoolscene"]
 
-[ext_resource type="Script" path="res://scripts/ui/screen_base.gd" id="1_screen"]
+[ext_resource type="Script" path="res://scripts/ui/echo_pool_screen.gd" id="1_echo"]
+[ext_resource type="Theme" uid="uid://bfugutheme0001" path="res://assets/theme/fugu_theme.tres" id="2_theme"]
 
 [node name="EchoPoolScreen" type="Control"]
 layout_mode = 3
@@ -9,6 +10,102 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_screen")
+theme = ExtResource("2_theme")
+script = ExtResource("1_echo")
 screen_id = "echo_pool"
 screen_title = "Echo Pool"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.094118, 0.105882, 0.141176, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 42
+theme_override_constants/margin_bottom = 24
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="Margin/Root"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.854902, 0.321569, 0.364706, 1)
+text = "Echo Pool"
+
+[node name="SummaryLabel" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Capacity 3 / 100 · favorites 1 / 99 · sorted by power"
+
+[node name="Controls" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SortLabel" type="Label" parent="Margin/Root/Controls"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Sort"
+
+[node name="SortSelector" type="OptionButton" parent="Margin/Root/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ExchangeButton" type="Button" parent="Margin/Root/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Exchange Event"
+
+[node name="ListPanel" type="PanelContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ListMargin" type="MarginContainer" parent="Margin/Root/ListPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/Root/ListPanel/ListMargin"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="RecordList" type="VBoxContainer" parent="Margin/Root/ListPanel/ListMargin/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="MessageLabel" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+autowrap_mode = 3
+text = ""
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="HubButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Back to Hub"
