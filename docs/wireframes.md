@@ -84,9 +84,12 @@ Selected deterministically by `TrainingSimulator.encounter_kind(floor, route)`:
 - **⛺ Rest** (`kind="rest"`) — campfire safe floor: Heal / Upgrade relic; no combat.
 
 ## Build notes
-- Screens are built in Godot under `game/scenes/<screen>.tscn` + scripts; wire to game logic
-  ported from `prototype/game.py` (don't reinvent the math — port `GachaSystem`, `TrainingSimulator`,
-  `EchoPool`, `RelicForge`, etc.).
+- Screens are built in Godot under `game/scenes/<screen>.tscn` + scripts and loaded by
+  `game/main.tscn` through stable screen ids. Shared screen behavior starts in
+  `game/scripts/ui/screen_base.gd`, while player state and ported systems are exposed through
+  the `GameSession` autoload (`game/scripts/game_session.gd`).
+- Wire screens to game logic ported from `prototype/game.py` (don't reinvent the math — use
+  `GachaSystem`, `TrainingSimulator`, `EchoPool`, `RelicForge`, etc.).
 - Large numbers display as mantissa·10^magnitude (e.g. `8.4e4`), not raw integers.
 - Apply the project Theme (fonts + palette) to every screen; combat uses Tiny Swords sprites,
   maps use Isometric terrain, missing art falls back to Prototype Textures.
