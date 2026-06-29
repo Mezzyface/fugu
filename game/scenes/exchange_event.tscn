@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://d62exchangeeventscene"]
 
-[ext_resource type="Script" path="res://scripts/ui/screen_base.gd" id="1_screen"]
+[ext_resource type="Script" path="res://scripts/ui/exchange_event.gd" id="1_exchange"]
+[ext_resource type="Theme" uid="uid://bfugutheme0001" path="res://assets/theme/fugu_theme.tres" id="2_theme"]
 
 [node name="ExchangeEvent" type="Control"]
 layout_mode = 3
@@ -9,6 +10,139 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_screen")
+theme = ExtResource("2_theme")
+script = ExtResource("1_exchange")
 screen_id = "exchange_event"
 screen_title = "Exchange Event"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.094118, 0.105882, 0.141176, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 42
+theme_override_constants/margin_bottom = 24
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="Margin/Root"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.854902, 0.321569, 0.364706, 1)
+text = "Exchange Event"
+
+[node name="EventLabel" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.772549, 0.623529, 0.419608, 1)
+text = "Resonant Tide — ×3 multiplier · 2d left · favorites locked"
+
+[node name="Body" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="ListPanel" type="PanelContainer" parent="Margin/Root/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ListMargin" type="MarginContainer" parent="Margin/Root/Body/ListPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/Root/Body/ListPanel/ListMargin"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="RecordList" type="VBoxContainer" parent="Margin/Root/Body/ListPanel/ListMargin/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="PreviewPanel" type="PanelContainer" parent="Margin/Root/Body"]
+custom_minimum_size = Vector2(390, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 3
+
+[node name="PreviewMargin" type="MarginContainer" parent="Margin/Root/Body/PreviewPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="PreviewStack" type="VBoxContainer" parent="Margin/Root/Body/PreviewPanel/PreviewMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="PreviewHeader" type="Label" parent="Margin/Root/Body/PreviewPanel/PreviewMargin/PreviewStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Aggregate Preview"
+
+[node name="PreviewLabel" type="Label" parent="Margin/Root/Body/PreviewPanel/PreviewMargin/PreviewStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+autowrap_mode = 3
+text = "2 selected → +96✦ +75◆ +6⬡"
+
+[node name="RuleCopy" type="Label" parent="Margin/Root/Body/PreviewPanel/PreviewMargin/PreviewStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+autowrap_mode = 3
+text = "Favorites are locked by default; at least one removable echo remains available. Confirm uses EchoPool.exchange_event(ids, multiplier)."
+
+[node name="ConfirmButton" type="Button" parent="Margin/Root/Body/PreviewPanel/PreviewMargin/PreviewStack"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+text = "Confirm Exchange"
+
+[node name="MessageLabel" type="Label" parent="Margin/Root/Body/PreviewPanel/PreviewMargin/PreviewStack"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+autowrap_mode = 3
+text = ""
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="PoolButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Echo Pool"
+
+[node name="HubButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Back to Hub"
