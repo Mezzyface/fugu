@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://d58runsetupscene"]
 
-[ext_resource type="Script" path="res://scripts/ui/screen_base.gd" id="1_screen"]
+[ext_resource type="Script" path="res://scripts/ui/run_setup.gd" id="1_setup"]
+[ext_resource type="Theme" uid="uid://bfugutheme0001" path="res://assets/theme/fugu_theme.tres" id="2_theme"]
 
 [node name="RunSetup" type="Control"]
 layout_mode = 3
@@ -9,6 +10,190 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_screen")
+theme = ExtResource("2_theme")
+script = ExtResource("1_setup")
 screen_id = "run_setup"
 screen_title = "Run Setup"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.094118, 0.105882, 0.141176, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 48
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 48
+theme_override_constants/margin_bottom = 28
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TitleLabel" type="Label" parent="Margin/Root"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.854902, 0.321569, 0.364706, 1)
+text = "Run Setup"
+
+[node name="SubtitleLabel" type="Label" parent="Margin/Root"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+text = "Character · parents · route · projected start stats"
+
+[node name="TopSelectors" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="CharacterBlock" type="VBoxContainer" parent="Margin/Root/TopSelectors"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="CharacterHeader" type="Label" parent="Margin/Root/TopSelectors/CharacterBlock"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Base Character"
+
+[node name="CharacterSelector" type="OptionButton" parent="Margin/Root/TopSelectors/CharacterBlock"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RouteBlock" type="VBoxContainer" parent="Margin/Root/TopSelectors"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="RouteHeader" type="Label" parent="Margin/Root/TopSelectors/RouteBlock"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Route"
+
+[node name="RouteSelector" type="OptionButton" parent="Margin/Root/TopSelectors/RouteBlock"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Body" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 22
+
+[node name="ParentsPanel" type="PanelContainer" parent="Margin/Root/Body"]
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ParentsMargin" type="MarginContainer" parent="Margin/Root/Body/ParentsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="ParentsStack" type="VBoxContainer" parent="Margin/Root/Body/ParentsPanel/ParentsMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ParentsHeader" type="Label" parent="Margin/Root/Body/ParentsPanel/ParentsMargin/ParentsStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Parent Echoes  (max 2)"
+
+[node name="SelectedParentsLabel" type="Label" parent="Margin/Root/Body/ParentsPanel/ParentsMargin/ParentsStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.588235, 0.819608, 0.666667, 1)
+autowrap_mode = 3
+text = "Parents: none selected"
+
+[node name="ParentScroll" type="ScrollContainer" parent="Margin/Root/Body/ParentsPanel/ParentsMargin/ParentsStack"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ParentList" type="VBoxContainer" parent="Margin/Root/Body/ParentsPanel/ParentsMargin/ParentsStack/ParentScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="ProjectionPanel" type="PanelContainer" parent="Margin/Root/Body"]
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ProjectionMargin" type="MarginContainer" parent="Margin/Root/Body/ProjectionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="ProjectionStack" type="VBoxContainer" parent="Margin/Root/Body/ProjectionPanel/ProjectionMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ProjectionHeader" type="Label" parent="Margin/Root/Body/ProjectionPanel/ProjectionMargin/ProjectionStack"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+text = "Projected Start"
+
+[node name="RouteDetailLabel" type="Label" parent="Margin/Root/Body/ProjectionPanel/ProjectionMargin/ProjectionStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+autowrap_mode = 3
+text = "Balanced · growth 112%"
+
+[node name="StatsGrid" type="GridContainer" parent="Margin/Root/Body/ProjectionPanel/ProjectionMargin/ProjectionStack"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 22
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="InstabilityLabel" type="Label" parent="Margin/Root/Body/ProjectionPanel/ProjectionMargin/ProjectionStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.623529, 0.419608, 1)
+text = "lineage depth 0 · instability ⚠ 0"
+
+[node name="MessageLabel" type="Label" parent="Margin/Root/Body/ProjectionPanel/ProjectionMargin/ProjectionStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.776471, 0.788235, 0.823529, 1)
+autowrap_mode = 3
+text = ""
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="StartButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Start Run"
+
+[node name="HubButton" type="Button" parent="Margin/Root/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back to Hub"
