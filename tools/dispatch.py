@@ -67,6 +67,7 @@ class Config:
     labels: Dict[str, str]
     worktree_dir: str
     runs_dir: str
+    agent_timeout_seconds: int = 5400
 
     @staticmethod
     def load(path: Path) -> "Config":
@@ -165,10 +166,45 @@ def count_in_progress(tasks: List["Task"], status_values: Dict[str, str]) -> int
     return sum(1 for t in tasks if t.status == status_values["in_progress"])
 
 
+def branches_to_delete(existing: List[str], branch: str) -> List[str]:
+    """Local branches that must be deleted before `git worktree add -b <branch>` can
+    succeed. Merged task/* branches persist locally forever (nothing prunes them), so a
+    re-run on the same issue number hits 'branch already exists' and crashes."""
+    return [b for b in existing if b == branch]
+
+
 def closed_to_reconcile(tasks: List["Task"], done_status: str) -> List["Task"]:
     """Closed issues whose Status isn't Done yet (GitHub closes the issue on PR merge
     but doesn't move the Project's Status field). Excludes items with no status set."""
     return [t for t in tasks if t.state == "CLOSED" and t.status and t.status != done_status]
+
+
+def archive_candidates(tasks: List["Task"], done_status: str) -> List["Task"]:
+    """Closed + Done items to archive off the board — keeps `items(first:100, ...)`
+    pages from filling up with items nobody needs to see again. Archiving happens
+    right after a task lands in Done (freshly reconciled or already there); archived
+    items stop appearing in the items query, which is the point."""
+    return [t for t in tasks if t.state == "CLOSED" and t.status == done_status]
+
+
+def stale_in_progress(
+    tasks: List["Task"],
+    active_runs: Dict[str, str],
+    status_values: Dict[str, str],
+    labels_cfg: Dict[str, str],
+) -> List["Task"]:
+    """Board items to recover on startup: still In Progress, still agent-eligible, and
+    listed in `active_runs` (a run this same process started but never finished — since
+    runs are synchronous within one process, any such entry found at startup belongs to
+    a process that died mid-run, not one still working)."""
+    listed = set(active_runs)
+    return [
+        t
+        for t in tasks
+        if str(t.number) in listed
+        and t.status == status_values["in_progress"]
+        and is_agent_task(t, labels_cfg)
+    ]
 
 
 def classify_result(returncode: int, output: str, tail_lines: int = 25) -> Tuple[str, str]:
@@ -387,14 +423,14 @@ def _run(cmd: List[str], cwd: Optional[Path] = None, check: bool = False) -> Tup
 
 
 ITEMS_QUERY = """
-query($login:String!, $number:Int!){
+query($login:String!, $number:Int!, $cursor:String){
   %s(login:$login){
     projectV2(number:$number){
       id
       field(name:"Status"){
         ... on ProjectV2SingleSelectField { id name options { id name } }
       }
-      items(first:100){
+      items(first:100, after:$cursor){
         nodes{
           id
           fieldValueByName(name:"Status"){
@@ -408,6 +444,7 @@ query($login:String!, $number:Int!){
             }
           }
         }
+        pageInfo{ hasNextPage endCursor }
       }
     }
   }
@@ -415,27 +452,73 @@ query($login:String!, $number:Int!){
 """
 
 
+def merge_pages(node_lists: List[List[dict]], page_infos: List[Dict[str, object]]) -> Tuple[List[dict], bool, Optional[str]]:
+    """Merge a sequence of `items.nodes` lists into one, and decide whether another
+    page needs fetching. Pure so the pagination loop in `fetch_board` can stay a thin
+    wrapper around this + the gh call.
+
+    Continuation follows the LAST page's pageInfo (hasNextPage/endCursor) — that's the
+    one describing what comes after everything merged so far.
+    """
+    merged: List[dict] = []
+    for nodes in node_lists:
+        merged.extend(nodes)
+    if not page_infos:
+        return merged, False, None
+    last = page_infos[-1]
+    has_next = bool(last.get("hasNextPage"))
+    end_cursor = last.get("endCursor") if has_next else None
+    return merged, has_next, end_cursor
+
+
 def fetch_board(config: Config, state: dict) -> List[Task]:
-    """Query the board, cache field/option ids in `state`, return Task list."""
+    """Query the board, cache field/option ids in `state`, return Task list.
+
+    Paginates `items(first:100, after:$cursor)` until `pageInfo.hasNextPage` is false —
+    boards past 100 items (this repo already files an impl + QA issue per task) would
+    otherwise silently drop everything past page one. The `cursor` flag is OMITTED on
+    the first request; GraphQL treats an empty-string cursor as invalid, and `$cursor`
+    is declared nullable (`String`, no `!`) so a missing `-f cursor=` argument is fine.
+    """
     query = ITEMS_QUERY % config.owner_type  # "user" or "organization"
-    code, out = _run([
-        "gh", "api", "graphql",
-        "-f", f"query={query}",
-        "-f", f"login={config.owner}",
-        "-F", f"number={config.project_number}",
-    ])
-    if code != 0:
-        raise RuntimeError(f"board query failed:\n{out}")
-    data = json.loads(out)
-    project = data["data"][config.owner_type]["projectV2"]
-    state["project_id"] = project["id"]
-    fld = project.get("field") or {}
+    node_lists: List[List[dict]] = []
+    page_infos: List[Dict[str, object]] = []
+    cursor: Optional[str] = None
+    project_meta = None
+    while True:
+        cmd = [
+            "gh", "api", "graphql",
+            "-f", f"query={query}",
+            "-f", f"login={config.owner}",
+            "-F", f"number={config.project_number}",
+        ]
+        if cursor:
+            cmd += ["-f", f"cursor={cursor}"]
+        code, out = _run(cmd)
+        if code != 0:
+            raise RuntimeError(f"board query failed:\n{out}")
+        data = json.loads(out)
+        project = data["data"][config.owner_type]["projectV2"]
+        if project_meta is None:
+            project_meta = project
+        items = project["items"]
+        node_lists.append(items["nodes"])
+        page_info = items.get("pageInfo") or {}
+        page_infos.append(page_info)
+        merged, has_next, end_cursor = merge_pages(node_lists, page_infos)
+        if not has_next:
+            break
+        cursor = end_cursor
+
+    state["project_id"] = project_meta["id"]
+    fld = project_meta.get("field") or {}
     if fld:
         state["status_field_id"] = fld["id"]
         state["status_options"] = {o["name"]: o["id"] for o in fld.get("options", [])}
 
+    all_nodes, _, _ = merge_pages(node_lists, page_infos)
     tasks: List[Task] = []
-    for node in project["items"]["nodes"]:
+    for node in all_nodes:
         content = node.get("content") or {}
         if "number" not in content:  # draft item, not an issue — skip
             continue
@@ -503,11 +586,18 @@ def pr_review_state(config: Config, pr: str) -> str:
         return ""
 
 
+def archive_item(config: Config, item_id: str) -> None:
+    _run(["gh", "project", "item-archive", str(config.project_number),
+          "--owner", config.owner, "--id", item_id], check=True)
+
+
 def reconcile_closed(config: Config, state: dict, tasks: List["Task"],
                      log: Callable[[str], None]) -> int:
     """Move closed issues that aren't Done yet -> Done (a PR merge closes the issue
     but leaves the board's Status field untouched). Safety net for the GitHub
-    'item closed -> Done' workflow."""
+    'item closed -> Done' workflow. Then archive every closed+Done item (freshly
+    reconciled or already there) so the board stays under the pagination cap instead
+    of accumulating forever."""
     done_name = config.status_values.get("done")
     if not done_name:
         return 0
@@ -515,10 +605,51 @@ def reconcile_closed(config: Config, state: dict, tasks: List["Task"],
     for t in stale:
         try:
             set_status(config, state, t, "done")
+            t.status = done_name
             log(f"  [reconcile] #{t.number} closed -> Done (was {t.status or 'no status'})")
         except Exception as exc:
             log(f"  [reconcile] #{t.number} failed: {exc}")
+    for t in archive_candidates(tasks, done_name):
+        try:
+            archive_item(config, t.item_id)
+            log(f"  [archive] #{t.number} archived")
+        except Exception as exc:
+            log(f"  [archive] #{t.number} failed: {exc}")
     return len(stale)
+
+
+def recover_stale_in_progress(config: Config, state: dict,
+                              log: Callable[[str], None]) -> int:
+    """Startup recovery: `active_runs` entries left over from a dispatcher process that
+    died mid-run. Runs are synchronous within one process, so ANY entry found here at
+    startup belongs to a dead process — reset the matching board item to Ready so the
+    next poll can pick it back up, instead of it staying stranded In Progress forever
+    (fatal at max_concurrency: 1). Best-effort end to end: any failure is logged, never
+    raised, so a broken recovery pass can't block the dispatcher from starting."""
+    active_runs = state.get("active_runs") or {}
+    if not active_runs:
+        return 0
+    recovered = 0
+    try:
+        tasks = fetch_board(config, state)
+        save_state(DEFAULT_STATE, state)
+        stale = stale_in_progress(tasks, active_runs, config.status_values, config.labels)
+        for t in stale:
+            run_id = active_runs.get(str(t.number), "?")
+            try:
+                set_status(config, state, t, "ready")
+                comment_issue(config, t.number,
+                              f"♻️ Recovered after dispatcher restart; run `{run_id}` presumed dead.")
+                log(f"  [recover] #{t.number} In Progress -> Ready (run {run_id} presumed dead)")
+                recovered += 1
+            except Exception as exc:
+                log(f"  [recover] #{t.number} failed: {exc}")
+    except Exception as exc:
+        log(f"  [recover] startup recovery pass failed: {exc}")
+    finally:
+        state["active_runs"] = {}
+        save_state(DEFAULT_STATE, state)
+    return recovered
 
 
 # ---- agent abstraction -------------------------------------------------------
@@ -527,10 +658,26 @@ class Agent:
         raise NotImplementedError
 
 
+def _decode_partial_output(raw) -> str:
+    """Best-effort text from a TimeoutExpired's .stdout/.output, which may be str,
+    bytes, or None depending on how the subprocess was invoked."""
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return raw
+
+
+def timeout_message(partial_text: str, timeout_seconds: int) -> str:
+    """Build the agent-run text returned when the subprocess is killed for hanging."""
+    return f"{partial_text}\n[dispatch] agent timed out after {timeout_seconds}s"
+
+
 @dataclass
 class ClaudeCodeAgent(Agent):
     model: str
     allowed_tools: str
+    timeout_seconds: int = 5400
 
     def run(self, workdir: Path, prompt: str, log_path: Path) -> Tuple[int, str]:
         cmd = [
@@ -543,9 +690,16 @@ class ClaudeCodeAgent(Agent):
         mcp = workdir / ".mcp.json"
         if mcp.exists():
             cmd += ["--mcp-config", str(mcp)]
-        proc = subprocess.run(cmd, cwd=str(workdir), text=True,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            proc = subprocess.run(cmd, cwd=str(workdir), text=True,
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  timeout=self.timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            partial = _decode_partial_output(getattr(exc, "stdout", None) or getattr(exc, "output", None))
+            text = timeout_message(_agent_text(partial), self.timeout_seconds)
+            log_path.write_text(partial)
+            return 124, text
         log_path.write_text(proc.stdout)
         return proc.returncode, _agent_text(proc.stdout)
 
@@ -566,11 +720,25 @@ def _agent_text(stdout: str) -> str:
 
 
 # ---- git worktree ------------------------------------------------------------
+def list_local_branches(cwd: Path = ROOT) -> List[str]:
+    code, out = _run(["git", "branch", "--format=%(refname:short)"], cwd=cwd)
+    if code != 0:
+        return []
+    return [ln.strip() for ln in out.splitlines() if ln.strip()]
+
+
 def create_worktree(config: Config, task: Task, run_id: str) -> Path:
     wt_root = ROOT / config.worktree_dir
     wt_root.mkdir(parents=True, exist_ok=True)
     wt = wt_root / f"{task.number}-{run_id}"
     _run(["git", "fetch", "origin", config.base_branch], cwd=ROOT, check=True)
+    # A same-numbered task may have run before (merged PR, branch never pruned) — the
+    # local branch still exists and `worktree add -b` would throw. Delete it first,
+    # tolerating failure (e.g. checked out in another worktree); if deletion couldn't
+    # clear the way, the `worktree add` below still fails and is handled by the
+    # setup-rollback in dispatch_one().
+    for stale in branches_to_delete(list_local_branches(ROOT), task.branch):
+        _run(["git", "branch", "-D", stale], cwd=ROOT)
     _run(["git", "worktree", "add", "-b", task.branch, str(wt),
           f"origin/{config.base_branch}"], cwd=ROOT, check=True)
     return wt
@@ -734,9 +902,54 @@ def run_qa(config: Config, state: dict, task: Task, agent: Agent,
 # A rework task revises an EXISTING PR in place: a fresh agent checks out the PR
 # branch, makes the requested changes, and the dispatcher pushes them back to the
 # same branch (updating the PR) and re-renders screenshots. Reuses the qa-meta
-# block (pr/branch/impl) to know which PR to revise.
+# block (pr/branch/impl) to know which PR to revise. On success it also re-files a
+# QA task for the revised PR (see `rework_impl_task` / the tail of `run_rework`) so
+# a revision can't permanently dodge the "every PR gets a verifier pass" invariant.
 def is_rework_task(task: "Task", labels_cfg: Dict[str, str]) -> bool:
     return labels_cfg.get("rework", "rework") in task.labels
+
+
+def rework_impl_task(meta: Dict[str, str], impl_title: str, impl_body: str,
+                     impl_labels: List[str]) -> Task:
+    """Reconstruct the original impl `Task` (well enough for `create_qa_task`/
+    `qa_issue_body`) from the rework task's `qa-meta` plus the impl issue's fetched
+    title/body/labels. Pure — the network fetch is a thin caller in `run_rework`."""
+    impl_number = int(meta.get("impl") or 0)
+    return Task(
+        item_id="", number=impl_number, title=impl_title, body=impl_body,
+        url="", state="OPEN", status="", labels=list(impl_labels), assignees=[],
+        branch=meta.get("branch", ""),
+    )
+
+
+def file_rework_qa_task(config: Config, state: dict, meta: Dict[str, str], pr: str,
+                        log: Callable[[str], None]) -> None:
+    """Fetch the original impl issue and re-file a QA task for the just-revised PR,
+    reusing the same `create_qa_task`/`qa_issue_body` machinery a fresh impl PR uses.
+    Best-effort: any failure to read the impl issue is logged and QA creation is
+    skipped (mirrors how `create_qa_task` itself treats each `gh` failure) — this
+    must never turn an already-successful rework into a failure."""
+    impl = meta.get("impl")
+    if not impl:
+        log("  [qa] rework qa-meta has no impl issue number; skipping QA re-file")
+        return
+    code, out = _run(["gh", "issue", "view", str(impl), "--repo", config.repo,
+                      "--json", "title,labels,body"])
+    if code != 0:
+        log(f"  [qa] could not fetch impl issue #{impl} for QA re-file:\n{out}")
+        return
+    try:
+        info = json.loads(out)
+        impl_title = info["title"]
+        impl_body = info.get("body", "") or ""
+        impl_labels = [l["name"] for l in info.get("labels", [])]
+    except (json.JSONDecodeError, KeyError) as exc:
+        log(f"  [qa] could not parse impl issue #{impl} for QA re-file: {exc}")
+        return
+    impl_task = rework_impl_task(meta, impl_title, impl_body, impl_labels)
+    parsed_impl = parse_issue_body(impl_body)
+    pr_url = f"https://github.com/{config.repo}/pull/{pr}"
+    create_qa_task(config, state, impl_task, parsed_impl, pr_url, log)
 
 
 def comment_pr(config: Config, pr: str, body: str) -> None:
@@ -823,6 +1036,15 @@ def run_rework(config: Config, state: dict, task: Task, agent: Agent,
             comment_pr(config, pr, f"🔧 Revised per the rework request (run `{run_id}`); please re-review.")
             comment_issue(config, task.number, f"✅ Pushed revisions to PR #{pr}; closing rework.")
             _run(["gh", "issue", "close", str(task.number), "--repo", config.repo])
+            # Re-file QA for the revised PR: rework strips ready-to-merge above, so
+            # without this the PR would permanently exit the QA lane after one
+            # revision. Best-effort end to end — a rework that already succeeded
+            # must still be reported as "reworked" even if QA re-filing can't.
+            if not is_qa_task(task, config.labels):
+                try:
+                    file_rework_qa_task(config, state, meta, pr, log)
+                except Exception as exc:
+                    log(f"  [qa] could not re-file QA after rework: {exc}")
             return "reworked"
         set_status(config, state, task, "needs_human")
         comment_issue(config, task.number,
@@ -887,10 +1109,29 @@ def dispatch_one(config: Config, state: dict, task: Task, agent: Agent, act: boo
         return "skipped"
 
     set_status(config, state, task, "in_progress")
-    comment_issue(config, task.number,
-                  f"🤖 Picked up by the dispatcher (run `{run_id}`). Working on branch "
-                  f"`{task.branch}`.")
-    wt = create_worktree(config, task, run_id)
+    # Record this run as active so a crash mid-run can be recovered on the next
+    # startup (see `stale_in_progress` / the recovery pass in `main()`): runs are
+    # synchronous within one process, so an entry still present at startup can only
+    # mean the process that owned it died before reaching the `finally` below.
+    state.setdefault("active_runs", {})[str(task.number)] = run_id
+    save_state(DEFAULT_STATE, state)
+    try:
+        comment_issue(config, task.number,
+                      f"🤖 Picked up by the dispatcher (run `{run_id}`). Working on branch "
+                      f"`{task.branch}`.")
+        wt = create_worktree(config, task, run_id)
+    except Exception as exc:
+        # Setup failed before the agent ever ran: the task must not stay stranded In
+        # Progress (that deadlocks the board at max_concurrency: 1). Roll it back.
+        log(f"  [setup] #{task.number} failed before agent start: {exc}")
+        set_status(config, state, task, "needs_human")
+        comment_issue(config, task.number,
+                      f"🚧 Setup failed before work started ({exc}). Routed to "
+                      f"**Needs Human**.")
+        state.get("active_runs", {}).pop(str(task.number), None)
+        save_state(DEFAULT_STATE, state)
+        return "setup_error"
+
     try:
         parsed = parse_issue_body(task.body)
         task_md = build_task_md(task, parsed, config.labels)
@@ -929,6 +1170,10 @@ def dispatch_one(config: Config, state: dict, task: Task, agent: Agent, act: boo
     finally:
         # Keep the branch (pushed or local) but drop the worktree dir to stay tidy.
         remove_worktree(wt)
+        # Run finished (however it finished) — no longer at risk of being orphaned by
+        # a process crash, so drop it from the active-runs bookkeeping.
+        state.get("active_runs", {}).pop(str(task.number), None)
+        save_state(DEFAULT_STATE, state)
 
 
 # ---- poll loop ---------------------------------------------------------------
@@ -1025,6 +1270,60 @@ def _self_test() -> int:
         Task("d", 13, "t", "", "", "CLOSED", "", [], []),            # no status -> skip
     ]
     check("closed_to_reconcile", [t.number for t in closed_to_reconcile(rec_tasks, "Done")], [10])
+
+    # archive_candidates: closed + done items only (open/closed x done/not-done)
+    arc_tasks = [
+        Task("a", 20, "t", "", "", "CLOSED", "Done", [], []),        # closed + done -> archive
+        Task("b", 21, "t", "", "", "CLOSED", "In review", [], []),   # closed, not done -> skip
+        Task("c", 22, "t", "", "", "OPEN", "Done", [], []),          # open, "done" status -> skip
+        Task("d", 23, "t", "", "", "OPEN", "In review", [], []),     # open, not done -> skip
+    ]
+    check("archive_candidates", [t.number for t in archive_candidates(arc_tasks, "Done")], [20])
+
+    # stale_in_progress: startup recovery for tasks orphaned by a dead dispatcher process
+    stale_tasks = [
+        mk(30, "In Progress", ["agent:claude"]),           # listed + in-progress -> recovered
+        mk(31, "In Progress", ["agent:claude"]),            # in-progress but unlisted -> skip
+        mk(32, "In Progress", ["human"]),                   # listed but human-labelled -> skip
+        mk(33, "Done", ["agent:claude"]),                   # listed but already Done -> skip
+    ]
+    stale_runs = {"30": "run-a", "32": "run-b", "33": "run-c"}
+    check("stale_in_progress recovers listed in-progress agent tasks",
+          [t.number for t in stale_in_progress(stale_tasks, stale_runs, sv, labels)], [30])
+    check("stale_in_progress empty active_runs", stale_in_progress(stale_tasks, {}, sv, labels), [])
+
+    # merge_pages: pagination — merges node lists, follows the LAST page's pageInfo
+    check("merge_pages single page",
+          merge_pages([[{"id": "a"}, {"id": "b"}]], [{"hasNextPage": False, "endCursor": None}]),
+          ([{"id": "a"}, {"id": "b"}], False, None))
+    check("merge_pages two pages exhausted",
+          merge_pages([[{"id": "a"}], [{"id": "b"}]],
+                      [{"hasNextPage": True, "endCursor": "c1"}, {"hasNextPage": False, "endCursor": None}]),
+          ([{"id": "a"}, {"id": "b"}], False, None))
+    check("merge_pages continues",
+          merge_pages([[{"id": "a"}]], [{"hasNextPage": True, "endCursor": "c1"}]),
+          ([{"id": "a"}], True, "c1"))
+    check("merge_pages empty", merge_pages([], []), ([], False, None))
+
+    # branches_to_delete: stale local branch clashing with `worktree add -b`
+    check("branches_to_delete present",
+          branches_to_delete(["main", "task/9-foo", "task/10-bar"], "task/9-foo"), ["task/9-foo"])
+    check("branches_to_delete absent",
+          branches_to_delete(["main", "task/10-bar"], "task/9-foo"), [])
+    check("branches_to_delete multiple existing, one match",
+          branches_to_delete(["main", "task/9-foo", "task/9-foo-old"], "task/9-foo"), ["task/9-foo"])
+    check("branches_to_delete empty existing", branches_to_delete([], "task/9-foo"), [])
+
+    # agent timeout handling
+    check("decode partial output bytes",
+          _decode_partial_output(b"partial claude output"), "partial claude output")
+    check("decode partial output str", _decode_partial_output("already text"), "already text")
+    check("decode partial output none", _decode_partial_output(None), "")
+    tmsg = timeout_message("did some work", 5400)
+    check("timeout message carries partial output", "did some work" in tmsg, True)
+    check("timeout message states duration", "timed out after 5400s" in tmsg, True)
+    check("timeout output classifies as error",
+          classify_result(124, timeout_message("partial work, no sentinel", 5400))[0], "error")
     md_deliv = build_task_md(tasks[4], parse_issue_body(""), labels)   # deliverable-labelled
     md_plain = build_task_md(tasks[0], parse_issue_body(""), labels)   # not labelled
     check("manifest note present (deliverable)", "deliverables/manifest.md" in md_deliv, True)
@@ -1072,6 +1371,27 @@ def _self_test() -> int:
     check("rework md targets the branch", "task/21-x" in rmd, True)
     check("rework md re-screenshots impl", "screenshots/21/" in rmd, True)
     check("rework md says no new PR", "Do NOT open a PR" in rmd, True)
+
+    # Re-file QA after rework: reconstruct the impl Task from qa-meta + fetched
+    # title/body/labels, then build the same follow-up QA body a fresh impl PR gets.
+    rw_meta = {"pr": "27", "branch": "task/21-x", "impl": "21"}
+    rw_impl_ui = rework_impl_task(rw_meta, "[Task] Nine-patch buttons",
+                                  "### Acceptance Criteria\n\n- [ ] margins match\n",
+                                  ["agent:claude", "ui"])
+    check("rework_impl_task carries branch/number from meta",
+          (rw_impl_ui.number, rw_impl_ui.branch), (21, "task/21-x"))
+    rw_qa_body_ui = qa_issue_body(rw_impl_ui, parse_issue_body(rw_impl_ui.body),
+                                  "https://github.com/o/r/pull/27", 27,
+                                  is_ui=labels.get("ui", "ui") in rw_impl_ui.labels)
+    check("rework re-file QA body propagates ui flag", "ui=1" in rw_qa_body_ui, True)
+    check("rework re-file QA body carries pr/impl meta",
+          "qa-meta pr=27" in rw_qa_body_ui and "impl=21" in rw_qa_body_ui, True)
+    rw_impl_plain = rework_impl_task(rw_meta, "[Task] Nine-patch buttons", "", ["agent:claude"])
+    rw_qa_body_plain = qa_issue_body(rw_impl_plain, parse_issue_body(""),
+                                     "https://github.com/o/r/pull/27", 27,
+                                     is_ui=labels.get("ui", "ui") in rw_impl_plain.labels)
+    check("rework re-file QA body omits ui flag when impl isn't ui-labelled",
+          "ui=1" in rw_qa_body_plain, False)
 
     print("\nSELF-TEST:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
@@ -1128,10 +1448,21 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     config = Config.load(Path(args.config))
     state = load_state(DEFAULT_STATE)
-    agent = ClaudeCodeAgent(model=config.model, allowed_tools=config.allowed_tools)
+    agent = ClaudeCodeAgent(model=config.model, allowed_tools=config.allowed_tools,
+                            timeout_seconds=config.agent_timeout_seconds)
     interval = args.interval if args.interval is not None else config.poll_interval_seconds
 
     def log(s): print(s, flush=True)
+
+    # Startup recovery: pick up any task left stranded In Progress by a dispatcher
+    # process that died mid-run (see `stale_in_progress`/`recover_stale_in_progress`).
+    # Best-effort — recovery must never block the dispatcher from starting.
+    try:
+        recovered = recover_stale_in_progress(config, state, log)
+        if recovered:
+            log(f"[recover] reset {recovered} stale in-progress task(s) to Ready")
+    except Exception as exc:
+        log(f"[recover] startup recovery failed: {exc}")
 
     if args.rework is not None:
         fetch_board(config, state); save_state(DEFAULT_STATE, state)  # resolve ids
