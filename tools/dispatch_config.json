@@ -6,6 +6,7 @@
   "base_branch": "master",
   "poll_interval_seconds": 120,
   "max_concurrency": 1,
+  "agent_timeout_seconds": 5400,
   "agent": "claude",
   "model": "claude-opus-4-8",
   "allowed_tools": "Edit,Write,Read,Bash,Glob,Grep,mcp__godot__*",
