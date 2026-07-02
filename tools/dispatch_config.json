@@ -16,7 +16,8 @@
     "in_progress": "In progress",
     "in_review": "In review",
     "needs_human": "Needs Human",
-    "done": "Done"
+    "done": "Done",
+    "backlog": "Backlog"
   },
   "labels": {
     "agent": "agent:claude",

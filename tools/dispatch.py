@@ -140,12 +140,18 @@ def select_ready(
     max_concurrency: int,
     status_values: Dict[str, str],
     labels_cfg: Dict[str, str],
+    dep_states: Optional[Dict[int, str]] = None,
 ) -> List["Task"]:
     """Ready agent tasks, capped by remaining concurrency.
 
     QA review tasks are picked before implementation tasks (then oldest-first within
     each group), so each PR gets reviewed before the dispatcher starts new work — reviews
     keep pace instead of piling up behind a backlog of implementations.
+
+    `dep_states` is optional and defaults to None (existing behavior, unchanged): when
+    given, it guards against a Ready task whose declared deps aren't actually satisfied
+    yet (e.g. someone manually dragged it to Ready too early) by excluding it here too,
+    on top of the auto-promotion gate in `promotable`.
     """
     slots = max(0, max_concurrency - in_progress)
     if slots <= 0:
@@ -157,6 +163,7 @@ def select_ready(
         if t.state == "OPEN"
         and t.status == status_values["ready"]
         and is_agent_task(t, labels_cfg)
+        and (dep_states is None or deps_satisfied(parse_depends(t.body), dep_states))
     ]
     ready.sort(key=lambda t: (qa_label not in t.labels, t.number))
     return ready[:slots]
@@ -205,6 +212,55 @@ def stale_in_progress(
         and t.status == status_values["in_progress"]
         and is_agent_task(t, labels_cfg)
     ]
+
+
+DEPENDS_LINE_RE = re.compile(r"^\s*[>\-]*\s*depends\s+on\s*:?\s*(.+)$", re.IGNORECASE)
+ISSUE_REF_RE = re.compile(r"#(\d+)")
+
+
+def parse_depends(body: str) -> List[int]:
+    """Issue numbers this task declares itself blocked on.
+
+    Scans each line for one starting (after optional whitespace/'>'/'-' list markers)
+    with "Depends on" (case-insensitive, optional colon), then pulls every `#N` ref off
+    the rest of that line (comma/space separated). Prose that merely mentions "depends
+    on" mid-sentence, or a "Depends on" line with no `#N` ref, yields nothing for that
+    line — only a line that STARTS with the phrase counts.
+    """
+    deps: set = set()
+    for line in body.splitlines():
+        m = DEPENDS_LINE_RE.match(line)
+        if not m:
+            continue
+        deps.update(int(n) for n in ISSUE_REF_RE.findall(m.group(1)))
+    return sorted(deps)
+
+
+def deps_satisfied(deps: List[int], states: Dict[int, str]) -> bool:
+    """True iff every declared dependency is known and CLOSED. No deps -> vacuously
+    satisfied. A dep missing from `states` (lookup failed or never resolved) counts as
+    unsatisfied rather than raising — callers must never crash the poll over this."""
+    return all(states.get(d) == "CLOSED" for d in deps)
+
+
+def promotable(
+    tasks: List["Task"],
+    states: Dict[int, str],
+    status_values: Dict[str, str],
+    labels_cfg: Dict[str, str],
+) -> List["Task"]:
+    """Backlog agent tasks whose declared deps are all CLOSED — ready to auto-promote
+    to Ready. A Backlog task with NO 'Depends on' line is never auto-promoted (it stays
+    human-controlled); only tasks that opt in via a deps line get the hands-off chain."""
+    backlog = status_values.get("backlog", "Backlog")
+    out = []
+    for t in tasks:
+        if t.state != "OPEN" or t.status != backlog or not is_agent_task(t, labels_cfg):
+            continue
+        deps = parse_depends(t.body)
+        if deps and deps_satisfied(deps, states):
+            out.append(t)
+    return out
 
 
 def classify_result(returncode: int, output: str, tail_lines: int = 25) -> Tuple[str, str]:
@@ -650,6 +706,72 @@ def recover_stale_in_progress(config: Config, state: dict,
         state["active_runs"] = {}
         save_state(DEFAULT_STATE, state)
     return recovered
+
+
+def issue_state(config: Config, number: int) -> Optional[str]:
+    """OPEN/CLOSED for an issue not on the board, via a direct `gh issue view`.
+    Best-effort: returns None on any failure (network, gh error, bad JSON) so callers
+    can treat an unresolvable dep as unsatisfied instead of crashing the poll."""
+    code, out = _run(["gh", "issue", "view", str(number), "--repo", config.repo,
+                      "--json", "state"])
+    if code != 0:
+        return None
+    try:
+        return json.loads(out).get("state")
+    except json.JSONDecodeError:
+        return None
+
+
+def build_dep_states(config: Config, tasks: List["Task"],
+                     log: Callable[[str], None]) -> Dict[int, str]:
+    """State (OPEN/CLOSED) for every issue number referenced by any task's 'Depends on'
+    line. Board tasks resolve for free from `tasks`; numbers not on the board (e.g. an
+    older issue that predates the board, or one deliberately kept off it) get a single
+    best-effort `gh issue view` each, cached for this poll only — a lookup failure logs
+    and leaves that dep out of the map, which `deps_satisfied` then treats as unmet
+    rather than raising."""
+    states: Dict[int, str] = {t.number: t.state for t in tasks}
+    needed: set = set()
+    for t in tasks:
+        needed.update(parse_depends(t.body))
+    for n in sorted(needed - set(states)):
+        result = issue_state(config, n)
+        if result is None:
+            log(f"  [deps] could not resolve state of #{n} (off-board lookup failed); "
+                f"treating as unsatisfied")
+            continue
+        states[n] = result
+    return states
+
+
+def auto_promote_backlog(config: Config, state: dict, tasks: List["Task"],
+                         states: Dict[int, str], act: bool,
+                         log: Callable[[str], None]) -> int:
+    """Promote Backlog tasks whose declared deps are all closed to Ready. Mutates the
+    matching `Task.status` in-memory (act mode only) so the same poll cycle's
+    `select_ready` can pick the task up immediately, instead of waiting a full interval
+    for the next board fetch."""
+    candidates = promotable(tasks, states, config.status_values, config.labels)
+    if not act:
+        for t in candidates:
+            deps = parse_depends(t.body)
+            log(f"  [no-act] would auto-promote #{t.number} to Ready "
+                f"(deps closed: {', '.join('#' + str(d) for d in deps)})")
+        return 0
+    promoted = 0
+    for t in candidates:
+        deps = parse_depends(t.body)
+        dep_list = ", ".join(f"#{d}" for d in deps)
+        try:
+            set_status(config, state, t, "ready")
+            comment_issue(config, t.number,
+                          f"✅ dependencies closed: {dep_list} — auto-promoted to Ready.")
+            t.status = config.status_values["ready"]
+            log(f"  [promote] #{t.number} Backlog -> Ready (deps closed: {dep_list})")
+            promoted += 1
+        except Exception as exc:
+            log(f"  [promote] #{t.number} failed: {exc}")
+    return promoted
 
 
 # ---- agent abstraction -------------------------------------------------------
@@ -1185,13 +1307,16 @@ def poll_once(config: Config, state: dict, agent: Agent, act: bool,
         reconciled = reconcile_closed(config, state, tasks, log)
     else:
         reconciled = len(closed_to_reconcile(tasks, config.status_values.get("done", "Done")))
+    dep_states = build_dep_states(config, tasks, log)
+    promoted = auto_promote_backlog(config, state, tasks, dep_states, act, log)
     in_progress = count_in_progress(tasks, config.status_values)
     selected = select_ready(tasks, in_progress, config.max_concurrency,
-                            config.status_values, config.labels)
+                            config.status_values, config.labels, dep_states)
     human = [t for t in tasks if config.labels["human"] in t.labels
              and t.status == config.status_values["ready"]]
     log(f"[poll] {len(tasks)} items | {in_progress} in-progress | "
-        f"{len(selected)} selected | {len(human)} human-ready | {reconciled} closed→Done")
+        f"{len(selected)} selected | {len(human)} human-ready | {reconciled} closed→Done | "
+        f"{promoted} backlog→Ready")
     for t in human:
         log(f"  [human] #{t.number} '{t.title}' awaits you (not executed)")
     results = []
@@ -1291,6 +1416,56 @@ def _self_test() -> int:
     check("stale_in_progress recovers listed in-progress agent tasks",
           [t.number for t in stale_in_progress(stale_tasks, stale_runs, sv, labels)], [30])
     check("stale_in_progress empty active_runs", stale_in_progress(stale_tasks, {}, sv, labels), [])
+
+    # parse_depends: "Depends on #N" lines -> sorted unique issue numbers
+    check("parse_depends single", parse_depends("### Depends on\n\nDepends on #90\n"), [90])
+    check("parse_depends multiple on one line",
+          parse_depends("depends on #91, #90 #90\n"), [90, 91])
+    check("parse_depends colon form", parse_depends("Depends on: #90, #91"), [90, 91])
+    check("parse_depends quoted-in-prose non-match",
+          parse_depends("This work depends on #90 being merged first.\n"), [])
+    check("parse_depends none", parse_depends("Just a normal body.\n"), [])
+    check("parse_depends list-marker line", parse_depends("- Depends on #12\n"), [12])
+    check("parse_depends blockquote line", parse_depends("> depends on #7\n"), [7])
+
+    # deps_satisfied: empty/met/unmet/missing
+    check("deps_satisfied empty", deps_satisfied([], {}), True)
+    check("deps_satisfied met", deps_satisfied([90], {90: "CLOSED"}), True)
+    check("deps_satisfied unmet (open)", deps_satisfied([90], {90: "OPEN"}), False)
+    check("deps_satisfied missing", deps_satisfied([90], {}), False)
+    check("deps_satisfied partial", deps_satisfied([90, 91], {90: "CLOSED", 91: "OPEN"}), False)
+
+    # promotable: Backlog -> Ready auto-promotion gate
+    sv_bl = dict(sv, backlog="Backlog")
+    promo_tasks = [
+        mk(40, "Backlog", ["agent:claude"], asg=[]),   # deps met below -> promote
+        mk(41, "Backlog", ["agent:claude"], asg=[]),   # no deps line -> never promoted
+        mk(42, "Backlog", ["agent:claude"], asg=[]),   # deps unmet -> not promoted
+        mk(43, "Ready", ["agent:claude"], asg=[]),     # already Ready, deps met -> not (wrong bucket)
+        mk(44, "Backlog", ["human"], asg=[]),          # human-labelled -> not promoted
+    ]
+    promo_tasks[0].body = "### Depends on\n\nDepends on #90\n"
+    promo_tasks[1].body = "No deps line here.\n"
+    promo_tasks[2].body = "Depends on #91\n"
+    promo_tasks[3].body = "Depends on #90\n"
+    promo_tasks[4].body = "Depends on #90\n"
+    promo_states = {90: "CLOSED", 91: "OPEN"}
+    check("promotable", [t.number for t in promotable(promo_tasks, promo_states, sv_bl, labels)], [40])
+
+    # select_ready: dep_states guard excludes an unmet-deps Ready task; default (None)
+    # path is untouched so every existing self-test above still passes unmodified.
+    dep_ready_tasks = [
+        mk(50, "Ready", ["agent:claude"]),   # no deps -> selectable regardless
+        mk(51, "Ready", ["agent:claude"]),   # deps met -> selectable
+        mk(52, "Ready", ["agent:claude"]),   # deps unmet -> excluded when dep_states given
+    ]
+    dep_ready_tasks[1].body = "Depends on #90\n"
+    dep_ready_tasks[2].body = "Depends on #91\n"
+    check("select_ready default arg unaffected by deps",
+          [t.number for t in select_ready(dep_ready_tasks, 0, 5, sv, labels)], [50, 51, 52])
+    check("select_ready excludes unmet-deps task when dep_states given",
+          [t.number for t in select_ready(dep_ready_tasks, 0, 5, sv, labels, promo_states)],
+          [50, 51])
 
     # merge_pages: pagination — merges node lists, follows the LAST page's pageInfo
     check("merge_pages single page",
